@@ -1,36 +1,65 @@
 # Jeu de rally sur Roblox — projet de trimestre
 
 Projet de « classe numérique » (élève de seconde).
-Un jeu de course de rally sur Roblox : circuit de montagne, chronomètre,
-records et podium, jouable à plusieurs.
+Un jeu de course de rally sur Roblox : **circuit de montagne avec tunnel et
+tremplin**, chronomètre, records et podium, jouable à plusieurs.
 
-## Ce que contient ce dépôt
+> **L'idée du projet en une phrase : je n'ai pas dessiné le circuit, je l'ai
+> programmé.**
+> Le tracé est décrit par 33 points de contrôle ; un script en déduit 187
+> morceaux de route, 342 barrières, les talus, les rochers et les arbres.
+
+## Le circuit actuel
+
+| | |
+|---|---|
+| Longueur du tour | 3076 studs (~43 secondes) |
+| Dénivelé | 59 studs entre la vallée et le sommet |
+| Virage le plus serré | 43 studs de rayon |
+| Pente maximale | 21,9 % (la réception du tremplin) |
+| Tremplin | trou de 30 studs, il faut rouler à 47 studs/s |
+
+Un tour : **grande ligne droite → épingle → montée → lacet → tunnel dans la
+montagne → descente → tremplin → dernier virage**.
+
+## Les fichiers
 
 | Fichier | À quoi ça sert |
 |---|---|
-| `PROJET-RALLY.md` | Le cahier des charges et la feuille de route du trimestre |
-| `PROGRESSION.md` | Où j'en suis + les notions de code déjà vues |
+| [`PROJET-RALLY.md`](PROJET-RALLY.md) | Cahier des charges et feuille de route du trimestre |
+| [`DOCUMENTATION.md`](DOCUMENTATION.md) | **Comment le générateur marche**, les maths, les bugs rencontrés |
+| [`PRESENTATION.md`](PRESENTATION.md) | Plan de la présentation orale + réponses aux questions |
+| [`PROGRESSION.md`](PROGRESSION.md) | Où j'en suis, notions de code déjà vues, journal |
+| [`scripts/GenerateurCircuit.lua`](scripts/GenerateurCircuit.lua) | Le générateur de circuit |
 | `lecons/` | Une fiche par étape |
-| `scripts/GenerateurCircuit.lua` | **Le générateur du circuit** |
 
-## Le générateur de circuit
+## Utiliser le générateur
 
-Le circuit n'est pas construit à la main, Part par Part : il est **généré par
-un script** à partir d'une liste de points de contrôle.
+1. Ouvrir `scripts/GenerateurCircuit.lua`, modifier la liste `POINTS`
+2. Tout copier
+3. Dans Roblox Studio : menu **View → Command Bar**, coller, `Entrée`
 
-Pour modifier le tracé : ouvrir `scripts/GenerateurCircuit.lua`, changer la
-liste `POINTS`, puis coller le script dans la barre de commande de Roblox
-Studio (menu View > Command Bar). Le circuit est reconstruit en quelques
-secondes.
+Le circuit est reconstruit en quelques secondes, et le script affiche un
+diagnostic : longueur du tour, pente maximale, rayon du virage le plus serré,
+et la vitesse minimale pour franchir le saut.
 
 Chaque point s'écrit `{ x, z, hauteur, largeur, type }` :
-- `x`, `z` : la position sur la carte, vue du dessus
-- `hauteur` : 0 en bas de la vallée, 70 au sommet de la montagne
-- `largeur` : 40 pour un virage serré, 80 pour une zone de dépassement
-- `type` : `"tunnel"` ou `"tremplin"` (facultatif)
 
-Règle à retenir : **des points serrés donnent un virage lent, des points
-écartés donnent une courbe rapide.**
+| Champ | Rôle |
+|---|---|
+| `x`, `z` | position sur la carte, vue du dessus |
+| `hauteur` | 0 dans la vallée, 70 au sommet de la montagne |
+| `largeur` | 40 pour un virage serré, 80 pour une zone de dépassement |
+| `type` | `"tunnel"` ou `"tremplin"` (facultatif) |
 
-Le script affiche un diagnostic à la fin : longueur du tour, pente maximale,
-rayon du virage le plus serré, et la vitesse minimale pour franchir le saut.
+**La règle à retenir :** des points **serrés** donnent un virage lent, des
+points **écartés** donnent une courbe rapide. C'est l'espacement qui fait la
+variété du circuit, pas le lissage.
+
+## Ce qui reste à faire
+
+- [ ] Le chronomètre (ligne départ/arrivée + checkpoints anti-triche)
+- [ ] Le temps affiché à l'écran
+- [ ] Le classement et le podium
+- [ ] Les écuries : choisir sa voiture au garage
+- [ ] Les gradins et l'ambiance

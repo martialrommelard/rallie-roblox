@@ -2,21 +2,24 @@
 --  GENERATEUR DE CIRCUIT - RALLY MONTAGNE
 --  A coller dans la barre de commande de Studio (View > Command Bar)
 --
---  Pour changer le trace : modifier la liste POINTS, puis relancer.
+--  Le circuit n'est PAS construit a la main. Il est calcule a partir
+--  de la liste POINTS ci-dessous. Changer un nombre = nouveau trace.
+--
 --  Chaque point = { x, z, hauteur, largeur, [type] }
 --     x, z     = position sur la carte (vue du dessus)
---     hauteur  = 0 en bas, 70 au sommet de la montagne
---     largeur  = 40 (serre) a 80 (zone de depassement)
---     type     = "tunnel" (murs + plafond) ou "tremplin" (rampe de saut)
+--     hauteur  = 0 dans la vallee, 70 au sommet de la montagne
+--     largeur  = 40 (virage serre) a 80 (zone de depassement)
+--     type     = "tunnel" ou "tremplin" (facultatif)
 --
 --  REGLE : points SERRES = virage lent.  Points ECARTES = courbe rapide.
 -- ============================================================
 
 local WS = game:GetService("Workspace")
 local EPAISSEUR, PAS, ECHELLE = 2, 18, 0.85
+local ANGLE_RAMPE, RAMPE_ENTERREE, RAMPE_DEVANT = 15, 14, 34
 
 local POINTS = {
-	{ -380, 480,  0, 60},            -- 1  DEPART / GRANDE LIGNE DROITE
+	{ -380, 490,  0, 60},            -- 1  DEPART / GRANDE LIGNE DROITE
 	{ -130, 478,  0, 60},            -- 2
 	{  110, 476,  0, 60},            -- 3
 	{  310, 468,  0, 80},            -- 4  ZONE DE DEPASSEMENT / gros freinage
@@ -37,18 +40,18 @@ local POINTS = {
 	{ -290,-170, 66, 48},            -- 19 debut de la descente
 	{ -380,-100, 60, 50},            -- 20 descente rapide
 	{ -430,  -5, 54, 50},            -- 21
-	{ -450,  85, 52, 48},            -- 22 approche du tremplin
-	{ -455, 150, 54, 50, "tremplin"},-- 23 LEVRE : la rampe est posee ici
-	{ -450, 195, 40, 70},            -- 24 RECEPTION (large, la pente plonge)
-	{ -455, 250, 26, 60},            -- 25
-	{ -500, 300, 14, 54},            -- 26
-	{ -580, 330,  4, 50},            -- 27
-	{ -670, 345,  0, 48},            -- 28 DERNIER VIRAGE (large)
-	{ -740, 400,  0, 48},            -- 29
-	{ -750, 470,  0, 48},            -- 30
-	{ -700, 525,  0, 52},            -- 31
-	{ -610, 545,  0, 56},            -- 32
-	{ -500, 520,  0, 58},            -- 33 retour sur la ligne droite
+	{ -450,  85, 52, 50},            -- 22 elan avant le saut
+	{ -455, 150, 54, 50, "tremplin"},-- 23 RAMPE puis TROU
+	{ -448, 232, 24, 72},            -- 24 RECEPTION (large)
+	{ -455, 290, 14, 60},            -- 25
+	{ -500, 350,  6, 54},            -- 26
+	{ -580, 375,  0, 50},            -- 27
+	{ -670, 385,  0, 48},            -- 28 DERNIER VIRAGE
+	{ -740, 430,  0, 48},            -- 29
+	{ -750, 495,  0, 48},            -- 30
+	{ -700, 545,  0, 52},            -- 31
+	{ -610, 560,  0, 56},            -- 32
+	{ -500, 535,  0, 58},            -- 33
 }
 
 for _, p in ipairs(POINTS) do
@@ -64,9 +67,12 @@ end
 local fRoute, fBar, fTalus = dossier("Route"), dossier("Barrieres"), dossier("Talus")
 local fTunnel, fDecor = dossier("Tunnel"), dossier("Decor")
 
--- SPLINE DE CATMULL-ROM CENTRIPETE (alpha = 0.5)
--- Passe exactement par chaque point de controle, et ne peut pas
--- boucler sur elle-meme meme si les points sont mal espaces.
+-- ============================================================
+--  SPLINE DE CATMULL-ROM CENTRIPETE (alpha = 0.5)
+--  Transforme les 33 points de controle en une courbe lisse.
+--  "Centripete" : la seule variante qui ne peut PAS boucler sur
+--  elle-meme quand les points sont irregulierement espaces.
+-- ============================================================
 local function dist3(a, b)
 	local dx, dz, dy = b[1]-a[1], b[2]-a[2], b[3]-a[3]
 	return math.sqrt(dx*dx + dz*dz + dy*dy)
@@ -107,8 +113,7 @@ for i = 1, n do
 end
 local N = #P
 
--- BORDS DE ROUTE : une ligne decalee a gauche et une a droite.
--- Les barrieres suivent CES lignes -> plus aucun trou dans les virages.
+-- bords gauche et droit de la route (servent au tunnel)
 local G, D = {}, {}
 for i = 1, N do
 	local a, b = P[i], P[(i % N) + 1]
@@ -133,12 +138,16 @@ end
 local ROCHE = Color3.fromRGB(102, 97, 90)
 local rng = Random.new(12)
 local longueur, penteMax, penteOu, rayonMin, iMin, hMax = 0, 0, 1, 99999, 1, 0
-local cfLevre, largLevre = nil, 50
+local segments = {}
+local derniereRoute = nil
 
+-- ============================================================
+--  ROUTE, TALUS, TUNNEL, ROCHERS
+-- ============================================================
 for i = 1, N do
 	local a = P[i]
 	local suivant = (i % N) + 1
-	local b, c = P[suivant], P[((i + 1) % N) + 1]
+	local b, c2 = P[suivant], P[((i + 1) % N) + 1]
 	local pa = Vector3.new(a[1], a[3], a[2])
 	local pb = Vector3.new(b[1], b[3], b[2])
 	local d = (pb - pa).Magnitude
@@ -146,55 +155,52 @@ for i = 1, N do
 
 	if d > 0.01 then
 		local tunnel = (a[5] == "tunnel")
-		longueur += d
-		local horiz = math.sqrt((b[1]-a[1])^2 + (b[2]-a[2])^2)
-		if horiz > 0.01 then
-			local pente = math.abs(b[3]-a[3]) / horiz
-			if pente > penteMax then penteMax = pente; penteOu = i end
-		end
-		local v1x, v1z = b[1]-a[1], b[2]-a[2]
-		local v2x, v2z = c[1]-b[1], c[2]-b[2]
-		local n1 = math.sqrt(v1x*v1x + v1z*v1z)
-		local n2 = math.sqrt(v2x*v2x + v2z*v2z)
-		if n1 > 0.01 and n2 > 0.01 then
-			local cosA = math.clamp((v1x*v2x + v1z*v2z) / (n1*n2), -1, 1)
-			local ang = math.acos(cosA)
-			if ang > 0.02 then
-				local r = n1 / ang
-				if r < rayonMin then rayonMin = r; iMin = i end
+		local vide   = (a[5] == "tremplin")   -- le trou du saut
+		local videSuivant = (b[5] == "tremplin")
+
+		if not vide then
+			longueur += d
+			local horiz = math.sqrt((b[1]-a[1])^2 + (b[2]-a[2])^2)
+			if horiz > 0.01 then
+				local pente = math.abs(b[3]-a[3]) / horiz
+				if pente > penteMax then penteMax = pente; penteOu = i end
+			end
+			local v1x, v1z = b[1]-a[1], b[2]-a[2]
+			local v2x, v2z = c2[1]-b[1], c2[2]-b[2]
+			local n1 = math.sqrt(v1x*v1x + v1z*v1z)
+			local n2 = math.sqrt(v2x*v2x + v2z*v2z)
+			if n1 > 0.01 and n2 > 0.01 then
+				local cosA = math.clamp((v1x*v2x + v1z*v2z) / (n1*n2), -1, 1)
+				local ang = math.acos(cosA)
+				if ang > 0.02 then
+					local r = n1 / ang
+					if r < rayonMin then rayonMin = r; iMin = i end
+				end
 			end
 		end
 
 		local larg = (a[4] + b[4]) / 2
 		local cfBrut = CFrame.lookAt((pa + pb) / 2, pb)
 		-- ANTI Z-FIGHTING : une route sur deux est descendue de 0.04 stud.
-		-- Les surfaces ne sont plus confondues -> plus de faux "trous".
+		-- Sans ca, deux surfaces exactement a la meme hauteur clignotent
+		-- et donnent l'illusion de trous dans le bitume.
 		local cf = cfBrut * CFrame.new(0, ((i % 2 == 0) and 0 or -0.04), 0)
 
-		if a[5] == "tremplin" then cfLevre = cfBrut; largLevre = larg end
-
-		bloc(fRoute, "Route"..i, Vector3.new(larg, EPAISSEUR, d*1.4), cf,
-			Enum.Material.Asphalt, Color3.fromRGB(62, 62, 66))
-
-		-- TALUS : suit exactement la pente de la route
-		if a[3] > 3 then
-			local H = a[3] + 24
-			bloc(fTalus, "Talus", Vector3.new(larg + 16, H, d*1.4),
-				cfBrut * CFrame.new(0, -H/2 - 0.5, 0),
-				Enum.Material.Rock, Color3.fromRGB(94, 86, 72))
+		if not vide then
+			local rt = bloc(fRoute, "Route"..i, Vector3.new(larg, EPAISSEUR, d*1.4), cf,
+				Enum.Material.Asphalt, Color3.fromRGB(62, 62, 66))
+			table.insert(segments, {p = rt, tunnel = tunnel})
+			if videSuivant then derniereRoute = rt end
+			-- talus : suit exactement la pente de la route
+			if a[3] > 3 then
+				local H = a[3] + 26
+				bloc(fTalus, "Talus", Vector3.new(larg + 6, H, d*1.4),
+					cfBrut * CFrame.new(0, -H/2 - 0.5, 0),
+					Enum.Material.Rock, Color3.fromRGB(94, 86, 72))
+			end
 		end
 
-		if not tunnel then
-			for _, cote in ipairs({G, D}) do
-				local p1, p2 = cote[i], cote[suivant]
-				local lb = (p2 - p1).Magnitude
-				if lb > 0.01 then
-					bloc(fBar, "Barriere", Vector3.new(2, 6, lb * 1.25),
-						CFrame.lookAt((p1+p2)/2, p2), Enum.Material.Metal,
-						((i % 10) < 5) and Color3.fromRGB(200,40,40) or Color3.fromRGB(235,235,235))
-				end
-			end
-		else
+		if tunnel and not videSuivant then
 			for _, cote in ipairs({G, D}) do
 				local p1, p2 = cote[i], cote[suivant]
 				local lb = (p2 - p1).Magnitude
@@ -209,7 +215,7 @@ for i = 1, N do
 		end
 
 		-- ROCHERS : le degagement tient compte de la ROTATION du bloc,
-		-- sinon un coin repart vers la route quand on le fait pivoter.
+		-- sinon un coin revient sur la route quand on le fait pivoter.
 		if (tunnel or (a[3] > 38 and (i % 5) == 0)) and (i % 3) == 0 then
 			for _, s in ipairs({-1, 1}) do
 				local w    = rng:NextNumber(70, 130)
@@ -231,18 +237,106 @@ for i = 1, N do
 	end
 end
 
--- LA RAMPE DU TREMPLIN : 12 degres vers le haut, posee sur la route.
--- C'est elle qui donne la vitesse verticale ; la pente a 35% juste
--- derriere se derobe sous la voiture et donne la hauteur du saut.
--- La route reste CONTINUE : en arrivant doucement on descend, sans tomber.
-if cfLevre then
-	bloc(circuit, "Tremplin", Vector3.new(largLevre, 3, 36),
-		cfLevre * CFrame.new(0, 0, -18) * CFrame.Angles(math.rad(12), 0, 0)
-		        * CFrame.new(0, 2.5, 0),
-		Enum.Material.Concrete, Color3.fromRGB(120, 112, 96))
+-- ============================================================
+--  BARRIERES EN CHAINE
+--  Chaque barriere relie le bord d'une route au bord de la SUIVANTE.
+--  C'est une chaine continue : plus de trou dans les virages, et
+--  plus de bout qui depasse dans le vide.
+-- ============================================================
+local poses, ouverts = 0, 0
+for k = 1, #segments do
+	local A1 = segments[k]
+	local B1 = segments[(k % #segments) + 1]
+	local ecart = (B1.p.Position - A1.p.Position).Magnitude
+	if ecart < 45 and not A1.tunnel and not B1.tunnel then
+		for _, s in ipairs({-1, 1}) do
+			local p1 = (A1.p.CFrame * CFrame.new(s * (A1.p.Size.X/2 + 1), 4, 0)).Position
+			local p2 = (B1.p.CFrame * CFrame.new(s * (B1.p.Size.X/2 + 1), 4, 0)).Position
+			local L = (p2 - p1).Magnitude
+			if L > 0.5 then
+				bloc(fBar, "Barriere", Vector3.new(2, 6, L * 1.3),
+					CFrame.lookAt((p1 + p2)/2, p2), Enum.Material.Metal,
+					((k % 10) < 5) and Color3.fromRGB(200,40,40) or Color3.fromRGB(235,235,235))
+				poses += 1
+			end
+		end
+	else
+		ouverts += 1   -- le tunnel et le trou du tremplin restent ouverts
+	end
 end
 
--- ARBRES sur les parties basses
+-- ============================================================
+--  LE TREMPLIN
+--  L'angle est ABSOLU (par rapport a l'horizontale), pas relatif a
+--  la route : sinon la pente du terrain s'ajoute et on obtient une
+--  marche dans laquelle la voiture s'ecrase.
+--  La rampe est enterree de 14 studs sous le bitume -> aucune marche.
+-- ============================================================
+local trou, chute, vmin = 0, 0, 0
+if derniereRoute then
+	local lv = derniereRoute.CFrame.LookVector
+	local dirH = Vector3.new(lv.X, 0, lv.Z).Unit
+	local lat = Vector3.new(-dirH.Z, 0, dirH.X)
+	local S = (derniereRoute.CFrame * CFrame.new(0, derniereRoute.Size.Y/2, -derniereRoute.Size.Z/2)).Position
+	local larg = derniereRoute.Size.X
+	local A = math.rad(ANGLE_RAMPE)
+	local u   = (dirH * math.cos(A) + Vector3.new(0,1,0) * math.sin(A)).Unit
+	local nrm = (Vector3.new(0,1,0) * math.cos(A) - dirH * math.sin(A)).Unit
+	local L = RAMPE_ENTERREE + RAMPE_DEVANT
+	local centre = ((S - u*RAMPE_ENTERREE) + (S + u*RAMPE_DEVANT))/2 - nrm * (EPAISSEUR/2 + 0.5)
+
+	local function rampePart(nom, taille, pos, couleur, mat)
+		local p = Instance.new("Part")
+		p.Name = nom; p.Anchored = true; p.Size = taille
+		p.CFrame = CFrame.lookAt(pos, pos + u)
+		p.Material = mat; p.Color = couleur
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = circuit
+	end
+	rampePart("Tremplin", Vector3.new(larg, 3, L), centre,
+		Color3.fromRGB(128, 120, 104), Enum.Material.Concrete)
+	for _, s in ipairs({-1, 1}) do
+		rampePart("MarqueTremplin", Vector3.new(6, 3.3, L),
+			centre + lat * (s * (larg/2 - 4)),
+			Color3.fromRGB(230, 190, 40), Enum.Material.SmoothPlastic)
+	end
+
+	local lip = S + u * RAMPE_DEVANT
+
+	-- pilier de roche sous la partie en porte-a-faux
+	local RECUL, PROF = 17, 36
+	local mid = lip - dirH * RECUL
+	local dessous = lip.Y - RECUL * math.tan(A) - 3 / math.cos(A)
+	local haut, bas = dessous - 1, -22
+	bloc(fDecor, "PilierTremplin", Vector3.new(larg + 4, haut - bas, PROF),
+		CFrame.lookAt(Vector3.new(mid.X, (haut + bas)/2, mid.Z),
+			Vector3.new(mid.X, (haut + bas)/2, mid.Z) + dirH),
+		Enum.Material.Rock, ROCHE)
+
+	-- calcul balistique : quelle vitesse faut-il pour franchir le trou ?
+	local meil, dmin = nil, 1e9
+	for _, p in ipairs(fRoute:GetChildren()) do
+		local rel = p.Position - lip
+		local av = rel:Dot(dirH)
+		if av > 0 and math.abs(rel:Dot(lat)) < 80 and math.abs(rel.Y) < 90 and av < dmin then
+			dmin = av; meil = p
+		end
+	end
+	if meil then
+		trou = dmin - meil.Size.Z * 0.5
+		chute = lip.Y - (meil.Position.Y + 1)
+		local g = WS.Gravity
+		for v = 10, 250, 1 do
+			local vx, vy = v*math.cos(A), v*math.sin(A)
+			if vx * (vy + math.sqrt(vy*vy + 2*g*chute)) / g >= trou then vmin = v; break end
+		end
+	end
+end
+
+-- ============================================================
+--  ARBRES sur les parties basses
+-- ============================================================
 for i = 1, N, 4 do
 	local a = P[i]
 	if a[3] < 16 and a[5] == nil then
@@ -271,8 +365,8 @@ end
 local bp = WS:FindFirstChild("Baseplate")
 if bp then
 	bp.Locked = false; bp.Anchored = true
-	bp.Size = Vector3.new(2300, 24, 2300)
-	bp.Position = Vector3.new(-100, -26, 130)
+	bp.Size = Vector3.new(2400, 24, 2400)
+	bp.Position = Vector3.new(-100, -26, 150)
 	bp.Material = Enum.Material.Grass
 	bp.Color = Color3.fromRGB(76, 112, 62)
 	local tex = bp:FindFirstChildOfClass("Texture")
@@ -282,8 +376,8 @@ end
 local ligne = Instance.new("Part")
 ligne.Name = "LigneDepart"; ligne.Anchored = true
 ligne.Size = Vector3.new(62, 0.4, 8)
-ligne.CFrame = CFrame.lookAt(Vector3.new(-230*ECHELLE, 1.3, 479*ECHELLE),
-	Vector3.new(0, 1.3, 477*ECHELLE))
+ligne.CFrame = CFrame.lookAt(Vector3.new(-230*ECHELLE, 1.3, 486*ECHELLE),
+	Vector3.new(0, 1.3, 480*ECHELLE))
 ligne.Material = Enum.Material.SmoothPlastic
 ligne.Color = Color3.fromRGB(245, 245, 245)
 ligne.Parent = circuit
@@ -291,31 +385,31 @@ ligne.Parent = circuit
 local sp = WS:FindFirstChild("SpawnLocation")
 if sp then
 	sp.Anchored = true
-	sp.CFrame = CFrame.lookAt(Vector3.new(-310*ECHELLE, 3, 479*ECHELLE),
-		Vector3.new(0, 3, 477*ECHELLE))
+	sp.CFrame = CFrame.lookAt(Vector3.new(-310*ECHELLE, 3, 488*ECHELLE),
+		Vector3.new(0, 3, 482*ECHELLE))
 end
 
--- VERIFICATION AUTOMATIQUE : on teste chaque morceau de route et on
--- pousse dehors tout rocher qui empiete sur le couloir de roulage.
-local params = OverlapParams.new()
-params.FilterType = Enum.RaycastFilterType.Include
-params.FilterDescendantsInstances = {fDecor}
-params.MaxParts = 30
-
+-- ============================================================
+--  CONTROLES AUTOMATIQUES
+--  Le script verifie son propre travail au lieu de me faire
+--  chercher les defauts a l'oeil.
+-- ============================================================
+-- a) rochers qui empietent sur le couloir de roulage -> on les pousse
+local opD = OverlapParams.new()
+opD.FilterType = Enum.RaycastFilterType.Include
+opD.FilterDescendantsInstances = {fDecor}
+opD.MaxParts = 30
 local sonde = Instance.new("Part")
-sonde.Anchored = true; sonde.CanCollide = false; sonde.Transparency = 1
-sonde.Parent = WS
-
+sonde.Anchored = true; sonde.CanCollide = false; sonde.Transparency = 1; sonde.Parent = WS
 local pousses = 0
 for _ = 1, 4 do
 	for _, r in ipairs(fRoute:GetChildren()) do
 		sonde.Size = Vector3.new(r.Size.X + 8, 20, r.Size.Z)
 		sonde.CFrame = r.CFrame * CFrame.new(0, 12, 0)
-		for _, p in ipairs(WS:GetPartsInPart(sonde, params)) do
+		for _, p in ipairs(WS:GetPartsInPart(sonde, opD)) do
 			if p.Name == "Rocher" then
 				local rel = r.CFrame:PointToObjectSpace(p.Position)
-				local s = (rel.X >= 0) and 1 or -1
-				p.CFrame = p.CFrame + r.CFrame.RightVector * (s * 22)
+				p.CFrame = p.CFrame + r.CFrame.RightVector * (((rel.X >= 0) and 1 or -1) * 22)
 				pousses += 1
 			end
 		end
@@ -323,9 +417,22 @@ for _ = 1, 4 do
 end
 sonde:Destroy()
 
+-- b) talus sans route au-dessus -> ils depassent dans le vide, on les enleve
+local rpR = RaycastParams.new()
+rpR.FilterType = Enum.RaycastFilterType.Include
+rpR.FilterDescendantsInstances = {fRoute}
+local orphelins = 0
+for _, t in ipairs(fTalus:GetChildren()) do
+	local sommet = (t.CFrame * CFrame.new(0, t.Size.Y/2 - 1, 0)).Position
+	if not WS:Raycast(sommet, t.CFrame.UpVector * 9, rpR) then
+		t:Destroy(); orphelins += 1
+	end
+end
+
 local pm, pp = P[iMin], P[penteOu]
 return string.format(
-	"RALLY MONTAGNE | %d segments | tour = %d studs (~%d s) | pente max %.1f%% (x=%d z=%d) | rayon mini %d studs (x=%d z=%d) | sommet %d studs | %d rochers repousses",
-	#fRoute:GetChildren(), math.floor(longueur), math.floor(longueur/70),
+	"CIRCUIT COMPLET | %d routes, %d barrieres | tour %d studs (~%d s)\npente max %.1f%% (x=%d z=%d) | rayon mini %d (x=%d z=%d) | sommet %d studs\nTREMPLIN : trou %d, chute %d, vitesse mini %d studs/s\nControles : %d ouvertures (tunnel + saut), %d rochers repousses, %d talus orphelins",
+	#segments, poses, math.floor(longueur), math.floor(longueur/70),
 	penteMax*100, math.floor(pp[1]), math.floor(pp[2]),
-	math.floor(rayonMin), math.floor(pm[1]), math.floor(pm[2]), math.floor(hMax), pousses)
+	math.floor(rayonMin), math.floor(pm[1]), math.floor(pm[2]), math.floor(hMax),
+	math.floor(trou), math.floor(chute), vmin, ouverts, pousses, orphelins)
