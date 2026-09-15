@@ -1,0 +1,10 @@
+# Fichiers temporaires de Roblox Studio
+*.rbxlx.lock
+*.rbxl.lock
+*.rbxlx.bak
+*.rbxl.bak
+
+# Windows / OneDrive
+Thumbs.db
+desktop.ini
+~$*
