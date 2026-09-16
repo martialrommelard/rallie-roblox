@@ -27,6 +27,20 @@ Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
 Un tour : ligne droite → épingle → montée → lacet → tunnel → descente →
 tremplin (+ fosse à piques) → dernier virage.
 
+### ⚠️ À VÉRIFIER EN PREMIER la prochaine fois
+
+Le générateur a reçu la montagne, l'éboulis et le podium (859 lignes), mais
+il **n'a jamais été exécuté depuis**. Il a été vérifié à l'œil et par des
+contrôles (équilibre `if`/`end`, portée des variables, nombre d'arguments du
+diagnostic), mais ça ne remplace pas un vrai essai.
+
+**Premier geste en reprenant** : coller `scripts/GenerateurCircuit.lua` dans la
+Command Bar et regarder ce qu'il affiche. S'il y a une erreur, elle est dans la
+partie ajoutée le 2026-09-16 (à partir de la ligne 460, section LA MONTAGNE).
+
+Le décor actuel de la place a été construit à la main, commande par commande :
+si le générateur plante, la place reste correcte tant qu'on ne l'a pas relancé.
+
 ### ⚠️ La première chose à faire en reprenant
 
 1. **Ouvrir Roblox Studio** et vérifier que le circuit est bien là
