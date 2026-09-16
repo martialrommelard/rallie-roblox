@@ -113,6 +113,31 @@ position à chaque image avec `Heartbeat`), qui elle est fiable.
 
 ---
 
+### 2026-09-16 (suite) — la montagne et le podium
+- **Vraie montagne** autour du tunnel : une grille de colonnes de roche,
+  hautes au centre, basses sur les bords. Sommet à ~600 studs (la piste
+  culmine à 60). Neige à partir de 262.
+- **Éboulis** : 1000 blocs accrochés aux parois pour casser les faces planes.
+- **Terrasse** taillée à mi-pente, côté ligne d'arrivée, et **podium** dessus
+  (argent / or / bronze) avec panneau « RALLY MONTAGNE » dans la neige.
+- Tout est écrit dans le générateur : il reconstruit le décor tout seul.
+
+**Ce que j'ai appris en me plantant** (c'est écrit en commentaire dans le code) :
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| `SpecialMesh` type `Pyramid` | la Part devenait invisible | ce type n'est plus affiché par Roblox |
+| Deux `WedgePart` croisés à 90° | on obtenait une colonne carrée | les volumes s'**additionnent**, ils ne se coupent pas : il faut 4 `CornerWedgePart` |
+| `Touched` sur une Part traversable | rien ne se déclenchait | `CanCollide = false` → surveiller la position avec `Heartbeat` |
+| Faire varier R, V et B séparément | rochers verts et violets | pour nuancer un gris, décaler les **trois canaux ensemble** |
+| Agrandir `TextSize` | le texte ne grossissait pas | `TextSize` est **plafonné à 100** : pour écrire gros, il faut **rétrécir le canvas** |
+| Enneiger les rochers | cubes blancs géants | seul le **sol** s'enneige, la roche nue s'éclaircit sans blanchir |
+
+⚠️ Le circuit est passé de 877 à environ 2160 objets. Si ça rame en jeu,
+c'est l'éboulis qu'il faudra alléger en premier.
+
+---
+
 ## Points à revoir / difficultés
 
 - Le **lacet** dans la montée fait 43 studs de rayon : c'est serré. À vérifier
