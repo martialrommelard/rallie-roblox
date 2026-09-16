@@ -458,6 +458,313 @@ for i = 1, N, 4 do
 end
 
 -- ============================================================
+--  LA MONTAGNE
+--  Avant, le "sommet" n etait que 3 gros paves poses au dessus du
+--  tunnel : la montagne n avait aucun volume.  Ici on la construit
+--  vraiment, en remplissant une grille de COLONNES de roche, hautes
+--  au centre et basses sur les bords.
+--
+--  Trois regles, apprises a la dure :
+--   * une colonne qui traverse le TUNNEL repart au dessus de son
+--     plafond -- sinon on bouche le tunnel.
+--   * une colonne qui touche la PISTE est supprimee -- la route doit
+--     rester a ciel ouvert.
+--   * la neige est une piece SEPAREE posee sur la colonne, sinon la
+--     colonne entiere devient blanche du sol au sommet et on obtient
+--     des cubes de glace geants.
+-- ============================================================
+local fMont = dossier("Montagne")
+
+-- centre et plafond du tunnel : la montagne se batit autour
+local mx, mz, nT, plafondT = 0, 0, 0, 0
+for _, p in ipairs(fTunnel:GetChildren()) do
+	mx += p.Position.X; mz += p.Position.Z; nT += 1
+	plafondT = math.max(plafondT, p.Position.Y + p.Size.Y/2)
+end
+local MONT_X, MONT_Z = mx / math.max(nT, 1), mz / math.max(nT, 1)
+local PLAFOND_T = plafondT + 2
+
+local M_RAYON, M_HAUT, M_MAILLE = 370, 640, 40
+local M_MINI  = 32          -- en dessous : rien (evite les dalles plates)
+local M_NEIGE = 262         -- la neige commence au niveau de la terrasse
+local BLANC   = Color3.fromRGB(230, 236, 242)
+local rngM = Random.new(3)
+
+for gx = -M_RAYON, M_RAYON, M_MAILLE do
+	for gz = -M_RAYON, M_RAYON, M_MAILLE do
+		local d = math.sqrt(gx*gx + gz*gz)
+		if d < M_RAYON then
+			local t = 1 - d / M_RAYON
+			local h = M_HAUT * (t ^ 1.25) * rngM:NextNumber(0.95, 1.05)
+			if h >= M_MINI then
+				bloc(fMont, "Montagne", Vector3.new(M_MAILLE + 2, h - SOL_SURFACE, M_MAILLE + 2),
+					CFrame.new(MONT_X + gx, SOL_SURFACE + (h - SOL_SURFACE)/2, MONT_Z + gz),
+					Enum.Material.Rock, ROCHE)
+			end
+		end
+	end
+end
+
+-- les colonnes qui traversent le tunnel repartent au dessus du plafond
+local opTun = OverlapParams.new()
+opTun.FilterType = Enum.RaycastFilterType.Include
+opTun.FilterDescendantsInstances = {fTunnel}
+for _, p in ipairs(fMont:GetChildren()) do
+	if #WS:GetPartsInPart(p, opTun) > 0 then
+		local haut = p.Position.Y + p.Size.Y/2
+		if haut > PLAFOND_T + 12 then
+			local nh = haut - PLAFOND_T
+			p.Size = Vector3.new(p.Size.X, nh, p.Size.Z)
+			p.Position = Vector3.new(p.Position.X, PLAFOND_T + nh/2, p.Position.Z)
+		else
+			p:Destroy()
+		end
+	end
+end
+
+-- celles qui tombent sur la piste sont supprimees
+local opPiste = OverlapParams.new()
+opPiste.FilterType = Enum.RaycastFilterType.Include
+opPiste.FilterDescendantsInstances = {fRoute, fBar, fTalus, circuit:FindFirstChild("Piques")}
+local montSurPiste = 0
+for _, p in ipairs(fMont:GetChildren()) do
+	if #WS:GetPartsInPart(p, opPiste) > 0 then p:Destroy(); montSurPiste += 1 end
+end
+
+-- ------------------------------------------------------------
+--  LA TERRASSE DU PODIUM, taillee a mi-pente
+--  cote ligne de depart.  On RASE ce qui depasse et on RALLONGE
+--  ce qui est trop court : ne faire que raser laisse des creux
+--  sous la dalle.
+-- ------------------------------------------------------------
+local TERR_X, TERR_Z = MONT_X + 6, MONT_Z + 183
+local TERR_Y, TERR_R = 260, 112
+for _, p in ipairs(fMont:GetChildren()) do
+	local dx, dz = p.Position.X - TERR_X, p.Position.Z - TERR_Z
+	if math.sqrt(dx*dx + dz*dz) < TERR_R then
+		local bas = p.Position.Y - p.Size.Y/2
+		if bas < TERR_Y - 2 then
+			local nh = TERR_Y - bas
+			p.Size = Vector3.new(p.Size.X, nh, p.Size.Z)
+			p.Position = Vector3.new(p.Position.X, bas + nh/2, p.Position.Z)
+			p.Material = Enum.Material.Rock
+			p.Color = ROCHE
+		end
+	end
+end
+
+-- la neige, en pieces separees posees sur les colonnes
+local nNeige = 0
+for _, p in ipairs(fMont:GetChildren()) do
+	local haut, bas = p.Position.Y + p.Size.Y/2, p.Position.Y - p.Size.Y/2
+	if haut > M_NEIGE and bas < M_NEIGE then
+		local hn = haut - M_NEIGE
+		p.Size = Vector3.new(p.Size.X, M_NEIGE - bas, p.Size.Z)
+		p.Position = Vector3.new(p.Position.X, bas + (M_NEIGE - bas)/2, p.Position.Z)
+		bloc(fMont, "Neige", Vector3.new(p.Size.X, hn, p.Size.Z),
+			CFrame.new(p.Position.X, M_NEIGE + hn/2, p.Position.Z),
+			Enum.Material.Snow, BLANC)
+		nNeige += 1
+	end
+end
+
+-- ------------------------------------------------------------
+--  L EBOULIS
+--  Sans lui, les flancs sont des faces planes de 40 studs.
+--  Pour chaque direction et chaque hauteur, on tire un rayon
+--  HORIZONTAL vers la paroi et on accroche un bloc a l endroit
+--  exact touche.  Enfonce a 45 % : moins, il fait l ecaille ;
+--  plus, il disparait dans la paroi.
+-- ------------------------------------------------------------
+local fEb = dossier("Eboulis")
+local rpEb = RaycastParams.new()
+rpEb.FilterType = Enum.RaycastFilterType.Include
+rpEb.FilterDescendantsInstances = {fMont}
+local opEb = OverlapParams.new()
+opEb.FilterType = Enum.RaycastFilterType.Include
+opEb.FilterDescendantsInstances = {fEb}
+local rngE = Random.new(11)
+
+local function accroche(ox, oz, angle, y, portee, tailleMax, densiteMax)
+	local a = math.rad(angle)
+	local dx, dz = math.cos(a), math.sin(a)
+	local hit = WS:Raycast(Vector3.new(ox + dx*portee, y, oz + dz*portee),
+		Vector3.new(-dx, 0, -dz) * (portee + 40), rpEb)
+	if not hit then return end
+	local w  = rngE:NextNumber(12, tailleMax)
+	local hh = w * rngE:NextNumber(0.75, 1.2)
+	local pf = w * rngE:NextNumber(0.85, 1.15)
+	local pos = hit.Position - Vector3.new(dx, 0, dz) * (pf * 0.45)
+	local neige = (pos.Y > M_NEIGE)
+	local p = Instance.new("Part")
+	p.Name = neige and "RocherNeige" or "Rocher"
+	p.Anchored = true
+	p.Size = Vector3.new(w, hh, pf)
+	p.CFrame = CFrame.new(pos) * CFrame.Angles(
+		math.rad(rngE:NextNumber(-9, 9)),
+		math.rad(rngE:NextNumber(0, 360)),
+		math.rad(rngE:NextNumber(-9, 9)))
+	p.Material = neige and Enum.Material.Snow or Enum.Material.Rock
+	p.Color = neige and BLANC or ROCHE
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = WS
+	if #WS:GetPartsInPart(p, opEb) > densiteMax then p:Destroy() else p.Parent = fEb end
+end
+
+for angle = 0, 359, 10 do
+	for y = 30, 570, 42 do
+		if rngE:NextNumber() < 0.72 then
+			local t = math.clamp(1 - y/600, 0.35, 1)
+			accroche(MONT_X, MONT_Z, angle, y, 460, 12 + 34*t, 2)
+		end
+	end
+end
+for angle = 0, 359, 6 do
+	for y = 88, 256, 17 do
+		accroche(TERR_X, TERR_Z, angle, y, 280, 32, 5)
+	end
+end
+for angle = 0, 359, 16 do
+	local a = math.rad(angle)
+	for _ = 1, 2 do
+		local d = rngE:NextNumber(330, 420)
+		local w = rngE:NextNumber(16, 52)
+		local hh = w * rngE:NextNumber(0.5, 1.0)
+		bloc(fEb, "Rocher", Vector3.new(w, hh, w * rngE:NextNumber(0.8, 1.15)),
+			CFrame.new(MONT_X + math.cos(a)*d, SOL_SURFACE + hh/2 - 1, MONT_Z + math.sin(a)*d)
+			* CFrame.Angles(0, math.rad(rngE:NextNumber(0, 360)), 0),
+			Enum.Material.Rock, ROCHE)
+	end
+end
+local ebSurPiste = 0
+for _, p in ipairs(fEb:GetChildren()) do
+	if #WS:GetPartsInPart(p, opPiste) > 0 then p:Destroy(); ebSurPiste += 1 end
+end
+
+-- ============================================================
+--  LE PODIUM, sur la terrasse
+--  Oriente PLEIN AXE +Z (face a la ligne d arrivee, qui est au
+--  nord).  Viser le centre exact de la ligne le mettait 21 degres
+--  de travers.
+--
+--  Piege des chiffres : TextScaled ne fait qu ajuster TextSize,
+--  qui est PLAFONNE A 100 par Roblox.  Pour ecrire gros il ne faut
+--  donc pas agrandir le texte mais RETRECIR le canvas (ici 5 px
+--  par stud) : les 100 px valent alors 20 studs.
+-- ============================================================
+local fPod = dossier("Podium")
+local basePod = CFrame.lookAt(Vector3.new(TERR_X, TERR_Y, TERR_Z),
+	Vector3.new(TERR_X, TERR_Y, TERR_Z + 10))
+
+bloc(fPod, "Estrade", Vector3.new(152, 4, 104), basePod * CFrame.new(0, 2, -8),
+	Enum.Material.Slate, Color3.fromRGB(96, 94, 92))
+bloc(fPod, "Estrade", Vector3.new(138, 3, 91), basePod * CFrame.new(0, 5.5, -8),
+	Enum.Material.Marble, Color3.fromRGB(150, 146, 140))
+local SOCLE = 7
+
+-- dx POSITIF part vers l ouest (RightVector d un lookAt vers +Z vaut -X) :
+-- l argent se met donc a dx positif pour apparaitre a GAUCHE vu de face.
+local MARCHES = {
+	{r = "2", dx =  38, h = 24, col = Color3.fromRGB(198, 202, 208)},
+	{r = "1", dx =   0, h = 35, col = Color3.fromRGB(214, 176,  52)},
+	{r = "3", dx = -38, h = 18, col = Color3.fromRGB(176, 116,  60)},
+}
+local PIX_STUD = 5
+local plusBasse = math.huge
+for _, mm in ipairs(MARCHES) do plusBasse = math.min(plusBasse, mm.h) end
+local COTE_PX = math.floor(plusBasse * 0.86 * PIX_STUD)
+
+for _, mm in ipairs(MARCHES) do
+	local p = bloc(fPod, "Marche" .. mm.r, Vector3.new(35, mm.h, 35),
+		basePod * CFrame.new(mm.dx, SOCLE + mm.h/2, -8), Enum.Material.Metal, mm.col)
+	bloc(fPod, "Bordure", Vector3.new(37, 1, 37),
+		basePod * CFrame.new(mm.dx, SOCLE + mm.h + 0.5, -8),
+		Enum.Material.SmoothPlastic, Color3.fromRGB(236, 234, 228))
+	for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back,
+	                       Enum.NormalId.Left,  Enum.NormalId.Right}) do
+		local larg = (face == Enum.NormalId.Front or face == Enum.NormalId.Back) and 35 or 35
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = face
+		sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+		sg.CanvasSize = Vector2.new(larg * PIX_STUD, mm.h * PIX_STUD)
+		sg.LightInfluence = 0
+		sg.Parent = p
+		local t = Instance.new("TextLabel")
+		t.AnchorPoint = Vector2.new(0.5, 0.5)
+		t.Position = UDim2.fromScale(0.5, 0.5)
+		t.Size = UDim2.fromOffset(COTE_PX, COTE_PX)
+		t.BackgroundTransparency = 1
+		t.Text = mm.r
+		t.TextColor3 = Color3.fromRGB(26, 24, 20)
+		t.TextScaled = true
+		t.Font = Enum.Font.GothamBlack
+		t.Parent = sg
+	end
+end
+
+-- 4 mats avec un feu en haut
+for _, s in ipairs({-1, 1}) do
+	for _, z in ipairs({-30, 14}) do
+		bloc(fPod, "Mat", Vector3.new(3, 56, 3), basePod * CFrame.new(s*70, SOCLE + 28, z),
+			Enum.Material.Metal, Color3.fromRGB(186, 188, 192))
+		local b = bloc(fPod, "Feu", Vector3.new(6, 6, 6),
+			basePod * CFrame.new(s*70, SOCLE + 58, z),
+			Enum.Material.Neon, Color3.fromRGB(255, 244, 214))
+		b.Shape = Enum.PartType.Ball
+		local pl = Instance.new("PointLight")
+		pl.Brightness = 1.4; pl.Range = 65; pl.Shadows = false
+		pl.Color = Color3.fromRGB(255, 246, 224); pl.Parent = b
+	end
+end
+
+-- LE PANNEAU, a mi-hauteur de la zone enneigee, sur le flanc nord.
+-- On cherche la paroi au rayon : place au juge, il rentre dans la roche.
+local Y_PAN = math.floor((M_NEIGE + 603) / 2)
+local hitPan = WS:Raycast(Vector3.new(MONT_X, Y_PAN, MONT_Z + 420),
+	Vector3.new(0, 0, -450), rpEb)
+local panX = hitPan and hitPan.Position.X or MONT_X
+local panZ = hitPan and (hitPan.Position.Z + 5) or (MONT_Z + 102)
+local pan = bloc(fPod, "Panneau", Vector3.new(230, 50, 4),
+	CFrame.new(panX, Y_PAN, panZ), Enum.Material.Slate, Color3.fromRGB(52, 50, 48))
+for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back}) do
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	sg.CanvasSize = Vector2.new(920, 200)
+	sg.LightInfluence = 0; sg.Parent = pan
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(1, 1); t.BackgroundTransparency = 1
+	t.Text = "RALLY MONTAGNE"
+	t.TextColor3 = Color3.fromRGB(244, 230, 186)
+	t.TextScaled = true; t.Font = Enum.Font.GothamBlack; t.Parent = sg
+end
+-- on degage ce qui masquerait le texte
+local sondeP = Instance.new("Part")
+sondeP.Anchored = true; sondeP.CanCollide = false; sondeP.Transparency = 1
+sondeP.Size = Vector3.new(pan.Size.X + 10, pan.Size.Y, 60)
+sondeP.Position = pan.Position + Vector3.new(0, 0, 32)
+sondeP.Parent = WS
+local opPan = OverlapParams.new()
+opPan.FilterType = Enum.RaycastFilterType.Include
+opPan.FilterDescendantsInstances = {fMont, fEb}
+opPan.MaxParts = 60
+for _, g in ipairs(WS:GetPartsInPart(sondeP, opPan)) do
+	local bas, haut = g.Position.Y - g.Size.Y/2, g.Position.Y + g.Size.Y/2
+	local cible = pan.Position.Y - pan.Size.Y/2 - 6
+	if haut > cible then
+		if cible - bas > 8 then
+			local nh = cible - bas
+			g.Size = Vector3.new(g.Size.X, nh, g.Size.Z)
+			g.Position = Vector3.new(g.Position.X, bas + nh/2, g.Position.Z)
+		else
+			g:Destroy()
+		end
+	end
+end
+sondeP:Destroy()
+
+-- ============================================================
 --  LE SOL
 --  Il est CREE s'il n'existe pas (avant, le script se contentait
 --  de modifier un sol deja present : si on l'avait supprime, on
@@ -538,8 +845,15 @@ end
 
 local pm, pp = P[iMin], P[penteOu]
 return string.format(
-	"CIRCUIT COMPLET | %d routes, %d barrieres | tour %d studs (~%d s)\npente max %.1f%% (x=%d z=%d) | rayon mini %d (x=%d z=%d) | sommet %d studs\nTREMPLIN : trou %d, chute %d, vitesse mini %d studs/s\nControles : %d ouvertures (tunnel + saut), %d rochers repousses, %d talus orphelins",
+	"CIRCUIT COMPLET | %d routes, %d barrieres | tour %d studs (~%d s)\n"..
+	"pente max %.1f%% | rayon mini %d | sommet de piste %d studs\n"..
+	"TREMPLIN : trou %d, chute %d, vitesse mini %d studs/s, %d piques\n"..
+	"MONTAGNE : %d blocs + %d eboulis | terrasse et podium a y=%d\n"..
+	"Controles : %d ouvertures, %d rochers repousses, %d talus orphelins\n"..
+	"TOTAL : %d objets",
 	#segments, poses, math.floor(longueur), math.floor(longueur/70),
-	penteMax*100, math.floor(pp[1]), math.floor(pp[2]),
-	math.floor(rayonMin), math.floor(pm[1]), math.floor(pm[2]), math.floor(hMax),
-	math.floor(trou), math.floor(chute), vmin, nPiques, ouverts, pousses, orphelins)
+	penteMax*100, math.floor(rayonMin), math.floor(hMax),
+	math.floor(trou), math.floor(chute), vmin, nPiques,
+	#fMont:GetChildren(), #fEb:GetChildren(), TERR_Y,
+	ouverts, pousses, orphelins,
+	#circuit:GetDescendants())
