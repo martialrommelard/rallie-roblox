@@ -17,16 +17,17 @@
 local WS = game:GetService("Workspace")
 local EPAISSEUR, PAS, ECHELLE = 2, 18, 0.85
 local ANGLE_RAMPE, RAMPE_ENTERREE, RAMPE_DEVANT = 15, 14, 34
+local SOL_SURFACE, SOL_EP = -1.5, 24   -- surface de l herbe, calee sous le bitume
 
 local POINTS = {
 	{ -380, 490,  0, 60},            -- 1  DEPART / GRANDE LIGNE DROITE
 	{ -130, 478,  0, 60},            -- 2
 	{  110, 476,  0, 60},            -- 3
 	{  310, 468,  0, 80},            -- 4  ZONE DE DEPASSEMENT / gros freinage
-	{  430, 440,  3, 46},            -- 5  entree de l'epingle
-	{  510, 370,  9, 42},            -- 6  EPINGLE
-	{  505, 290, 16, 42},            -- 7  apex
-	{  430, 240, 23, 46},            -- 8  sortie, ca monte
+	{  430, 440,  3, 62},            -- 5  entree de l'epingle
+	{  510, 370,  9, 56},            -- 6  EPINGLE
+	{  505, 290, 16, 56},            -- 7  apex
+	{  430, 240, 23, 62},            -- 8  sortie, ca monte
 	{  330, 195, 29, 48},            -- 9  MONTEE
 	{  300,  95, 36, 48},            -- 10 courbe rapide en montee
 	{  350,   5, 43, 46},            -- 11
@@ -39,11 +40,11 @@ local POINTS = {
 	{ -170,-215, 70, 44},            -- 18 SORTIE DU TUNNEL
 	{ -290,-170, 66, 48},            -- 19 debut de la descente
 	{ -380,-100, 60, 50},            -- 20 descente rapide
-	{ -430,  -5, 54, 50},            -- 21
-	{ -450,  85, 52, 50},            -- 22 elan avant le saut
-	{ -455, 150, 54, 50, "tremplin"},-- 23 RAMPE puis TROU
-	{ -448, 232, 24, 72},            -- 24 RECEPTION (large)
-	{ -455, 290, 14, 60},            -- 25
+	{ -445,  -5, 54, 56},            -- 21 on redresse : le couloir du
+	{ -452,  85, 52, 64},            -- 22 saut (21 a 25) est DROIT,
+	{ -452, 150, 54, 72, "tremplin"},-- 23 sinon la spline tourne pendant
+	{ -452, 232, 24, 72},            -- 24 le vol et on retombe a cote
+	{ -452, 290, 14, 60},            -- 25 de la piste (7 studs d ecart)
 	{ -500, 350,  6, 54},            -- 26
 	{ -580, 375,  0, 50},            -- 27
 	{ -670, 385,  0, 48},            -- 28 DERNIER VIRAGE
@@ -271,19 +272,41 @@ end
 --  la route : sinon la pente du terrain s'ajoute et on obtient une
 --  marche dans laquelle la voiture s'ecrase.
 --  La rampe est enterree de 14 studs sous le bitume -> aucune marche.
+--
+--  La rampe emprunte la largeur de la RECEPTION (et non celle de la
+--  route d'avant) et elle est recentree sur elle : sinon on decolle
+--  d'une rampe de 49 studs pour retomber sur une piste de 71, decalee
+--  de 7 studs sur le cote.
 -- ============================================================
-local trou, chute, vmin = 0, 0, 0
+local trou, chute, vmin, nPiques = 0, 0, 0, 0
 if derniereRoute then
 	local lv = derniereRoute.CFrame.LookVector
 	local dirH = Vector3.new(lv.X, 0, lv.Z).Unit
 	local lat = Vector3.new(-dirH.Z, 0, dirH.X)
 	local S = (derniereRoute.CFrame * CFrame.new(0, derniereRoute.Size.Y/2, -derniereRoute.Size.Z/2)).Position
-	local larg = derniereRoute.Size.X
 	local A = math.rad(ANGLE_RAMPE)
 	local u   = (dirH * math.cos(A) + Vector3.new(0,1,0) * math.sin(A)).Unit
 	local nrm = (Vector3.new(0,1,0) * math.cos(A) - dirH * math.sin(A)).Unit
 	local L = RAMPE_ENTERREE + RAMPE_DEVANT
-	local centre = ((S - u*RAMPE_ENTERREE) + (S + u*RAMPE_DEVANT))/2 - nrm * (EPAISSEUR/2 + 0.5)
+	local lip = S + u * RAMPE_DEVANT
+
+	-- On cherche la RECEPTION AVANT de construire, pour lui emprunter sa
+	-- largeur.  Le filtre lateral (< 80) est indispensable : sans lui on
+	-- attrape un morceau de piste situe a l'autre bout de la carte.
+	local meil, dmin = nil, 1e9
+	for _, p in ipairs(fRoute:GetChildren()) do
+		local rel = p.Position - lip
+		local av = rel:Dot(dirH)
+		if av > 0 and math.abs(rel:Dot(lat)) < 80 and math.abs(rel.Y) < 90 and av < dmin then
+			dmin = av; meil = p
+		end
+	end
+
+	local larg  = meil and meil.Size.X or derniereRoute.Size.X
+	local decal = meil and (meil.Position - lip):Dot(lat) or 0
+	lip = lip + lat * decal
+	local centre = ((S - u*RAMPE_ENTERREE) + (S + u*RAMPE_DEVANT))/2
+	             - nrm * (EPAISSEUR/2 + 0.5) + lat * decal
 
 	local function rampePart(nom, taille, pos, couleur, mat)
 		local p = Instance.new("Part")
@@ -302,8 +325,6 @@ if derniereRoute then
 			Color3.fromRGB(230, 190, 40), Enum.Material.SmoothPlastic)
 	end
 
-	local lip = S + u * RAMPE_DEVANT
-
 	-- pilier de roche sous la partie en porte-a-faux
 	local RECUL, PROF = 17, 36
 	local mid = lip - dirH * RECUL
@@ -315,14 +336,6 @@ if derniereRoute then
 		Enum.Material.Rock, ROCHE)
 
 	-- calcul balistique : quelle vitesse faut-il pour franchir le trou ?
-	local meil, dmin = nil, 1e9
-	for _, p in ipairs(fRoute:GetChildren()) do
-		local rel = p.Position - lip
-		local av = rel:Dot(dirH)
-		if av > 0 and math.abs(rel:Dot(lat)) < 80 and math.abs(rel.Y) < 90 and av < dmin then
-			dmin = av; meil = p
-		end
-	end
 	if meil then
 		trou = dmin - meil.Size.Z * 0.5
 		chute = lip.Y - (meil.Position.Y + 1)
@@ -331,6 +344,88 @@ if derniereRoute then
 			local vx, vy = v*math.cos(A), v*math.sin(A)
 			if vx * (vy + math.sqrt(vy*vy + 2*g*chute)) / g >= trou then vmin = v; break end
 		end
+
+		-- --------------------------------------------------------
+		--  LES PIQUES AU FOND DU TROU
+		--  Une pique = 4 CornerWedgePart (voir plus bas).  Surtout PAS de
+		--  SpecialMesh "Pyramid" : ce type n'est plus affiche par
+		--  Roblox et la Part devient carrement invisible.
+		--  CanCollide = false : c'est le script ServerScriptService.
+		--  Piques qui tue, pas la collision -- sinon la voiture
+		--  rebondit sur les pointes au lieu de mourir.
+		-- --------------------------------------------------------
+		local fPiques = dossier("Piques")
+		local bordRecep = meil.Position - dirH * (meil.Size.Z/2)
+		local zFin = (bordRecep - lip):Dot(dirH) - 4
+		local BASE, ESPACE = 6, 9
+		local rp = Random.new(7)
+		local nCols  = math.max(1, math.floor((larg - 8) / ESPACE))
+		local nRangs = math.max(1, math.floor((zFin - 4) / ESPACE))
+		for i = 0, nRangs do
+			for j = 0, nCols do
+				local av = 4 + i * ESPACE
+				if av <= zFin then
+					local h = rp:NextNumber(16, 24)
+					local pied = Vector3.new(lip.X, SOL_SURFACE - 1, lip.Z)
+					           + dirH * av + lat * (-(larg - 8)/2 + j * ESPACE)
+					-- Une pique = 4 CornerWedgePart, un par quart de tour.
+					-- Leurs quatre sommets se rejoignent au centre : ca fait
+					-- une pyramide a pointe unique.
+					-- NE PAS essayer avec deux WedgePart croises a 90 deg :
+					-- les deux volumes s ADDITIONNENT au lieu de se couper, on
+					-- obtient une colonne carree au lieu d une pointe.
+					local socle = CFrame.new(pied)
+					for _, ang in ipairs({0, 90, 180, 270}) do
+						local c = Instance.new("CornerWedgePart")
+						c.Name = "Pique"; c.Anchored = true
+						c.CanCollide = false; c.CanTouch = true
+						c.Size = Vector3.new(BASE/2, h, BASE/2)
+						c.CFrame = socle * CFrame.Angles(0, math.rad(ang), 0)
+						         * CFrame.new(BASE/4, h/2, BASE/4)
+						c.Material = Enum.Material.Metal
+						c.Color = Color3.fromRGB(118, 122, 128)
+						c.Parent = fPiques
+					end
+
+
+					nPiques += 1
+				end
+			end
+		end
+		-- on retire celles qui finissent dans un talus ou dans la roche
+		local opP = OverlapParams.new()
+		opP.FilterType = Enum.RaycastFilterType.Exclude
+		opP.FilterDescendantsInstances = {fPiques, WS:FindFirstChild("Baseplate")}
+		for _, p in ipairs(fPiques:GetChildren()) do
+			if #WS:GetPartsInPart(p, opP) > 0 then p:Destroy() end
+		end
+
+		-- --------------------------------------------------------
+		--  LA ZONE DE MORT  (creee APRES le nettoyage ci-dessus,
+		--  sinon elle serait supprimee : elle touche les talus)
+		--  Les piques seules ne tuent pas : espacees de 9 studs et
+		--  traversables (CanCollide = false), on tombe ENTRE deux
+		--  pointes sans rien toucher.  Cette boite invisible remplit
+		--  tout le fond du trou.
+		--  Elle est BASSE expres (20 studs) : plus haute, elle tuerait
+		--  un joueur qui reussit le saut et frole le bord de la piste.
+		--  C est le script Piques qui la surveille, a chaque image
+		--  (Heartbeat) et pas avec Touched -- voir le script.
+		-- --------------------------------------------------------
+		local HAUT_ZONE = 20
+		local profZ = dmin - meil.Size.Z/2 - 2
+		local cz = Vector3.new(lip.X, SOL_SURFACE + HAUT_ZONE/2 - 1, lip.Z)
+		         + dirH * (profZ/2 + 1)
+		local zone = Instance.new("Part")
+		zone.Name = "ZoneDeMort"
+		zone.Anchored = true
+		zone.CanCollide = false
+		zone.CanTouch = true
+		zone.Transparency = 1
+		zone.Size = Vector3.new(larg + 10, HAUT_ZONE, profZ)
+		zone.CFrame = CFrame.lookAt(cz, cz + dirH)
+		zone.Parent = fPiques
+
 	end
 end
 
@@ -362,16 +457,28 @@ for i = 1, N, 4 do
 	end
 end
 
+-- ============================================================
+--  LE SOL
+--  Il est CREE s'il n'existe pas (avant, le script se contentait
+--  de modifier un sol deja present : si on l'avait supprime, on
+--  se retrouvait a rouler au dessus du vide).
+--  Sa surface est calee juste sous le bitume de la vallee, sinon
+--  la route flotte plusieurs studs au dessus de l'herbe.
+-- ============================================================
 local bp = WS:FindFirstChild("Baseplate")
-if bp then
-	bp.Locked = false; bp.Anchored = true
-	bp.Size = Vector3.new(2400, 24, 2400)
-	bp.Position = Vector3.new(-100, -26, 150)
-	bp.Material = Enum.Material.Grass
-	bp.Color = Color3.fromRGB(76, 112, 62)
-	local tex = bp:FindFirstChildOfClass("Texture")
-	if tex then tex:Destroy() end
+if not bp then
+	bp = Instance.new("Part"); bp.Name = "Baseplate"; bp.Parent = WS
 end
+bp.Anchored = true
+bp.Size = Vector3.new(2048, SOL_EP, 2048)   -- 2048 = taille maxi d'une Part
+bp.Position = Vector3.new(-120, SOL_SURFACE - SOL_EP/2, 140)
+bp.Material = Enum.Material.Grass
+bp.Color = Color3.fromRGB(76, 112, 62)
+bp.TopSurface = Enum.SurfaceType.Smooth
+bp.BottomSurface = Enum.SurfaceType.Smooth
+bp.Locked = true
+local tex = bp:FindFirstChildOfClass("Texture")
+if tex then tex:Destroy() end
 
 local ligne = Instance.new("Part")
 ligne.Name = "LigneDepart"; ligne.Anchored = true
@@ -435,4 +542,4 @@ return string.format(
 	#segments, poses, math.floor(longueur), math.floor(longueur/70),
 	penteMax*100, math.floor(pp[1]), math.floor(pp[2]),
 	math.floor(rayonMin), math.floor(pm[1]), math.floor(pm[2]), math.floor(hMax),
-	math.floor(trou), math.floor(chute), vmin, ouverts, pousses, orphelins)
+	math.floor(trou), math.floor(chute), vmin, nPiques, ouverts, pousses, orphelins)

@@ -7,22 +7,25 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-09-15
+### État au 2026-09-16
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
+**Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
 
-Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place `Place1`)
-et il est jouable : on peut en faire le tour en voiture.
+Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
+`Projet de circuit`, placeId 99826427812339) et il est jouable.
 
 | | |
 |---|---|
-| Tour | 3076 studs (~43 s) |
+| Tour | 3083 studs (~44 s) |
 | Sommet | 59 studs de dénivelé |
-| Virage le plus serré | 43 studs de rayon |
+| Virage le plus serré | 43 studs de rayon (le lacet) |
+| Épingle | élargie à 55–66 studs (elle faisait 42–46) |
 | Tremplin | trou de 30 studs, il faut 47 studs/s |
+| Fosse à piques | 21 piques + zone de mort, 57 studs de chute |
 
 Un tour : ligne droite → épingle → montée → lacet → tunnel → descente →
-tremplin → dernier virage.
+tremplin (+ fosse à piques) → dernier virage.
 
 ### ⚠️ La première chose à faire en reprenant
 
@@ -36,22 +39,25 @@ tremplin → dernier virage.
 
 ### Ce qui n'est PAS encore fait
 
-- ❌ Aucun script de jeu : pas de chrono, pas de checkpoints, pas de podium
+- ❌ Pas de chrono, pas de checkpoints, pas de podium
 - ❌ La voiture vient du Toolbox, elle n'est pas configurée proprement
 - ❌ Aucun décor autre que les arbres et les rochers du circuit
+- ⚠️ **Mon script est dans `Workspace > Baseplate > Piques`**, pas dans
+  `ServerScriptService`. Il marche très bien là, mais si je supprime le sol je
+  perds le script : le glisser dans `ServerScriptService` serait plus sûr.
 
 ### La prochaine étape : LE CHRONOMÈTRE
 
-C'est là que j'écrirai mes **premières vraies lignes de Luau**.
-
 Il faut, dans l'ordre :
-1. Une Part nommée `LigneDepart` (elle existe déjà dans le dossier `Circuit`)
-2. Un script qui détecte quand une voiture la touche → événement `Touched`
+1. La Part `LigneDepart` (elle existe déjà dans le dossier `Circuit`)
+2. Détecter quand une voiture la franchit
 3. Une variable qui retient l'heure de départ
 4. Des checkpoints le long du circuit pour empêcher de couper
 
-Notions à apprendre à ce moment-là : `Touched`, les fonctions, les variables,
-les conditions `if`.
+⚠️ Pour la détection, **ne pas repartir sur `Touched`** : je m'y suis cassé les
+dents avec les piques. Réutiliser la méthode du script `Piques` (regarder la
+position à chaque image avec `Heartbeat`), qui elle est fiable.
+
 
 ---
 
@@ -62,9 +68,14 @@ les conditions `if`.
 | L'interface de Studio (Explorer, Properties, Output) | 2026-09-10 | Partout (`lecons/01-interface.md`) |
 | Lire et modifier un script Luau (la liste `POINTS`) | 2026-09-15 | Le générateur de circuit |
 | Git : `add`, `commit`, `push` | 2026-09-15 | Sauvegarder le projet sur GitHub |
+| **Variables** (`local piques = ...`) | 2026-09-16 | Le script `Piques` |
+| **Fonctions** (`local function ... end`) | 2026-09-16 | Le script `Piques` |
+| **Conditions** (`if ... then ... end`) | 2026-09-16 | Le script `Piques` |
+| **Boucles** (`for ... in ipairs(...) do`) | 2026-09-16 | Le script `Piques` |
+| **Événements** : `Heartbeat` (60 fois/s) | 2026-09-16 | Le script `Piques` |
+| Pourquoi `Touched` est peu fiable | 2026-09-16 | Découvert en déboguant les piques |
 
-⚠️ Je n'ai pas encore **écrit** de Luau moi-même — j'ai lu et modifié le
-générateur. La vraie programmation commence à l'étape du chronomètre.
+✅ **J'ai écrit mon premier script le 2026-09-16** : la fosse à piques.
 
 ---
 
@@ -82,6 +93,23 @@ générateur. La vraie programmation commence à l'étape du chronomètre.
 - Cinq bugs trouvés et corrigés (détaillés dans `DOCUMENTATION.md`).
 - Projet sauvegardé sur GitHub : https://github.com/martialrommelard/rallie-roblox
 - Documentation technique et plan de présentation orale écrits.
+
+### 2026-09-16
+- Nettoyage du circuit. Le « doublon » `MarqueTremplin` n'en était pas un :
+  ce sont les deux bandes jaunes du tremplin.
+- **Épingle élargie** : 42–46 → 55–66 studs. Le rayon (43) était au lacet, pas
+  à l'épingle : ce qui gênait, c'était la largeur, pas la courbure.
+- **Le sol avait disparu** (Baseplate supprimée par erreur) → le générateur le
+  CRÉE maintenant s'il manque, et sa surface est calée sous le bitume
+  (avant, la route flottait 12,6 studs au-dessus de l'herbe).
+- **Tremplin** : mis à la largeur de la réception (49 → 71) et recentré.
+- **Couloir du saut redressé** (points 21 à 25 alignés) : le décalage
+  rampe/route est passé de 6,9 studs à 0,04.
+- **Fosse à piques** sous le tremplin + **mon premier script Luau**.
+- Trois erreurs instructives, gardées en commentaire dans le code :
+  `SpecialMesh "Pyramid"` rend la Part invisible ; deux `WedgePart` croisés
+  s'additionnent au lieu de se couper (colonne, pas pointe) ; `Touched` ne se
+  déclenche pas de façon fiable sur une Part qu'on traverse.
 
 ---
 
