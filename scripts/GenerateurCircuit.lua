@@ -906,7 +906,7 @@ while garde < 60 do
 	garde += 1
 	local r = segments[k].p
 	table.insert(ordre, {p = r, d = dist})
-	if dist > 140 then break end
+	if dist > 200 then break end
 	local kp = k - 1; if kp < 1 then kp = #segments end
 	dist += (r.Position - segments[kp].p.Position).Magnitude
 	k = kp
@@ -922,12 +922,12 @@ local function surLaPiste(recul)
 end
 
 local NB_PLACES = 6
-local LARG_BOX, LONG_BOX = 8, 13
+local LARG_BOX, LONG_BOX = 8, 9
 local EP_TRAIT, EP_PEINT = 0.6, 0.5
 local yP       = dessD + 0.02 - EP_PEINT/2
-local LATERAL  = 13                  -- ecart du centre de la piste
+local LATERAL  = 15                  -- ecart du centre de la piste
 local RECUL_1  = 22                  -- la pole est a 22 studs de la ligne
-local DECALAGE = 11                  -- chaque place recule de 11 de plus
+local DECALAGE = 17                  -- chaque place recule de 17 de plus
 local BLANC    = Color3.fromRGB(248, 248, 248)
 
 for n = 1, NB_PLACES do
