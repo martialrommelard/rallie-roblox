@@ -117,7 +117,7 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
 - Prochaine étape : le **chrono**, qui lira la zone invisible `LigneDepart`.
 - **Grille de départ** : 6 emplacements, 3 de chaque côté, en quinconce.
   Tracé sobre — le trait à ne pas dépasser et les deux côtés, pas de numéro.
-  Boîtes de 8 x 9 studs, une place tous les 17 studs, de 22 à 107 studs
+  Boîtes de 11 x 9 studs, une place tous les 17 studs, de 22 à 107 studs
   derrière la ligne, 30 studs d'écart entre les deux colonnes.
   Le placement **remonte la piste segment par segment** en comptant les studs,
   au lieu de prolonger la ligne droite dans le vide : si la ligne d'arrivée se

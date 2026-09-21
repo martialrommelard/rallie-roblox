@@ -922,7 +922,7 @@ local function surLaPiste(recul)
 end
 
 local NB_PLACES = 6
-local LARG_BOX, LONG_BOX = 8, 9
+local LARG_BOX, LONG_BOX = 11, 9
 local EP_TRAIT, EP_PEINT = 0.6, 0.5
 local yP       = dessD + 0.02 - EP_PEINT/2
 local LATERAL  = 15                  -- ecart du centre de la piste
