@@ -48,6 +48,7 @@ Changer `H_MAT` monte ou descend tout le portique.
 | [`PRESENTATION.md`](PRESENTATION.md) | Plan de la présentation orale + réponses aux questions |
 | [`PROGRESSION.md`](PROGRESSION.md) | Où j'en suis, notions de code déjà vues, journal |
 | [`scripts/GenerateurCircuit.lua`](scripts/GenerateurCircuit.lua) | Le générateur de circuit |
+| [`scripts/FeuxDepart.lua`](scripts/FeuxDepart.lua) | Le compte à rebours des feux |
 | `lecons/` | Une fiche par étape |
 
 ## Utiliser le générateur
@@ -75,7 +76,7 @@ variété du circuit, pas le lissage.
 
 ## Ce qui reste à faire
 
-- [ ] Le **compte à rebours** : allumer `Feu1`…`Feu4`, tout éteindre → départ
+- [x] Le **compte à rebours** : 3 lignes rouges puis tout vert ✅
 - [ ] Le **chronomètre** (`Circuit/LigneDepart` existe déjà et l'attend)
 - [ ] Les **checkpoints** anti-triche
 - [ ] Le temps affiché à l'écran

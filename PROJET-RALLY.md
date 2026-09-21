@@ -123,3 +123,20 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
   au lieu de prolonger la ligne droite dans le vide : si la ligne d'arrivée se
   retrouvait un jour dans un virage, la grille suivrait la courbe.
   Vérifié par un tir de rayon vers le bas : les 18 traits touchent le bitume.
+- **Le compte à rebours des feux marche** (`scripts/FeuxDepart.lua`, installé
+  dans `ServerScriptService`). Séquence : ligne 1 rouge → ligne 2 rouge aussi →
+  ligne 3 rouge aussi → **tout vert, départ**. Une seconde entre chaque.
+  Les ampoules ont été renommées `Ampoule1/2/3` dans chaque colonne : le numéro
+  désigne la **ligne**, pas la colonne, donc une ligne entière s'allume d'un
+  coup avec `colonne:FindFirstChild("Ampoule" .. n)`.
+  Retenu : allumer une ampoule, c'est changer **trois** choses ensemble — la
+  couleur, la **matière** (`Neon`, sinon ça reste terne) et le `PointLight`.
+  Testé sans lancer Play, en relevant l'état des 12 ampoules à chaque étape.
+- Route6 avait été déplacé à la main (enfoncé de 0,5 stud, décalé de 3).
+  Retrouvé en mesurant, pour les 187 morceaux, l'écart au milieu de leurs deux
+  voisins : `Route6` sortait du lot. Recalé, puis vérifié en « roulant » le long
+  de l'axe (152 rayons tirés vers le bas) : plus aucun trou, surface plane.
+- Grille de départ : **2 colonnes façon F1** retenues. 6 boîtes de 11 studs
+  feraient 66 studs alors que la piste en fait 60 : impossible de donner à
+  chacune son couloir sans élargir la piste. Les places 1/3/5 sont donc dans
+  le même couloir, comme sur une vraie grille.

@@ -38,10 +38,11 @@ position écrite en dur.
 |---|---|---|
 | `Circuit/LigneDepart` | Part invisible 60 × 10 × 15 | **c'est elle que le chrono lira** |
 | `Circuit/Damier` | 36 cases de 5 × 5 enterrées dans le bitume | ce qu'on voit |
-| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu4` | le compte à rebours |
+| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu4` | le compte à rebours ✅ |
 | `Circuit/Grille` | 6 emplacements en quinconce, 18 traits | la grille de départ |
 
-Les 12 ampoules (4 colonnes × 3) sont **éteintes** : chacune a déjà son
+Les 12 ampoules (4 colonnes × 3) sont pilotées par `ServerScriptService.FeuxDepart`.
+Elles sont nommées `Ampoule1/2/3` par **ligne**. Chacune a son
 `PointLight` avec `Enabled = false`. Allumer un feu = `Enabled = true`
 et changer la couleur.
 
@@ -79,13 +80,13 @@ C'est un contrôle de structure, pas une preuve que tout le fichier tourne.
 - ⚠️ Les sons du moteur ne se chargent pas : les assets du modèle Toolbox ne
   m'appartiennent pas (`not authorized to access Asset`). La voiture est muette.
 
-### La prochaine étape : LE COMPTE À REBOURS + LE CHRONOMÈTRE
+### La prochaine étape : LE CHRONOMÈTRE
 
-C'est **un seul et même script** : les feux s'allument un par un, le dernier
-s'éteint, et le chrono démarre à cet instant précis.
+Le compte à rebours est **fait** (`scripts/FeuxDepart.lua`). Le chrono s'y
+branche : il démarre exactement là où le script affiche `print("DEPART !")`.
 
-1. Allumer `Feu1` à `Feu4` une seconde après l'autre (`for i = 1, 4`)
-2. Tout éteindre → **départ**, on note l'heure avec `os.clock()`
+1. ✅ FAIT — les feux : 3 lignes rouges puis tout vert
+2. Au passage au vert, noter l'heure avec `os.clock()`
 3. Détecter quand un joueur franchit `Circuit/LigneDepart`
 4. Des checkpoints le long du circuit pour empêcher de couper
 
@@ -97,6 +98,10 @@ position à chaque image avec `Heartbeat`), qui elle est fiable.
 💡 **L'idée qui simplifie tout** : le chrono ne suit pas la voiture, il suit
 **le joueur**. Comme on est assis dans le siège, le personnage se déplace avec
 la voiture. Ça marche donc avec la Bugatti, la Koenigsegg, ou même à pied.
+
+⚠️ `FeuxDepart.lua` tourne en **boucle toutes les 20 secondes** (constante
+`RELANCE`) : c'est provisoire, juste pour pouvoir regarder la séquence. Quand
+le chrono sera là, c'est lui qui déclenchera le départ.
 
 ---
 
@@ -117,6 +122,9 @@ la voiture. Ça marche donc avec la Bugatti, la Koenigsegg, ou même à pied.
 | **CFrame relatif** (`a.CFrame * CFrame.new(x, y, z)`) | 2026-09-21 | Tout poser *par rapport à* la route |
 | **Paramétrer au lieu d'écrire en dur** | 2026-09-21 | `NB_COL`, `H_MAT` : un chiffre change tout |
 | **Raycast** pour vérifier son propre travail | 2026-09-21 | Chaque trait de grille est-il sur le bitume ? |
+| **`task.wait()`** : faire attendre un script | 2026-09-21 | Le compte à rebours des feux |
+| **Matière `Neon`** : ce qui fait « allumé » | 2026-09-21 | Les ampoules du portique |
+| Nommer pour pouvoir chercher (`Ampoule1..3`) | 2026-09-21 | `FindFirstChild("Ampoule" .. n)` |
 
 ✅ **J'ai écrit mon premier script le 2026-09-16** : la fosse à piques.
 

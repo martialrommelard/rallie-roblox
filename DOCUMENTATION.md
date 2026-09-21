@@ -403,15 +403,53 @@ end
 Résultat : **0 trait sur 18 hors du bitume**. C'est plus rapide et plus sûr que
 de tourner autour à la caméra.
 
-### Ce qui attend le chrono
+### Le compte à rebours se lit en LIGNES, pas en colonnes
 
-Les 12 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
-colonnes s'appellent `Feu1` à `Feu4`. Le compte à rebours sera donc :
+Les ampoules s'appellent `Ampoule1`, `Ampoule2`, `Ampoule3` **dans chaque
+colonne** : le numéro, c'est la **ligne** (1 = en haut). Du coup une ligne
+entière s'allume d'un coup, quelle que soit la colonne :
 
 ```lua
-for i = 1, 4 do
-    allumer(feux["Feu" .. i])
+local function ligne(n)
+    local t = {}
+    for _, colonne in ipairs(feux:GetChildren()) do
+        if colonne:IsA("Model") then
+            local a = colonne:FindFirstChild("Ampoule" .. n)
+            if a then table.insert(t, a) end
+        end
+    end
+    return t
+end
+```
+
+La séquence tient alors en une boucle, **sans éteindre la ligne précédente** :
+
+```lua
+for n = 1, 3 do
+    peindre(ligne(n), ROUGE, true)
     task.wait(1)
 end
-eteindreTout()          -- GO : c'est ici que le chrono démarre
+peindre(tout, VERT, true)     -- DEPART
 ```
+
+| Temps | Ce qu'on voit |
+|---|---|
+| 0 s | ligne 1 rouge |
+| 1 s | lignes 1 **et** 2 rouges |
+| 2 s | les 3 lignes rouges |
+| 3 s | **tout vert → départ** |
+
+### Pourquoi changer la matière et pas seulement la couleur
+
+Une ampoule rouge vif en `SmoothPlastic` reste **terne** : elle est éclairée
+par le soleil comme n'importe quelle Part. C'est la matière `Neon` qui donne
+l'effet « allumé », parce qu'elle émet sa propre lumière.
+
+```lua
+a.Color = couleur
+a.Material = allumee and Enum.Material.Neon or Enum.Material.SmoothPlastic
+lumiere.Enabled = allumee          -- le PointLight éclaire le portique autour
+```
+
+Trois choses changent ensemble : la **couleur**, la **matière**, et le
+**PointLight**. Oublier la matière, c'est le piège classique.

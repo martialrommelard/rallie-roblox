@@ -878,7 +878,9 @@ for i = 1, NB_COL do
 	local dx = -LARG_PAN/2 + PAS_F/2 + (i - 1) * PAS_F
 	for r = 1, NB_RANGS do
 		local dy = (NB_RANGS - 1)/2 * ECART_A - (r - 1) * ECART_A
-		local amp = bloc(col, "Ampoule", Vector3.new(1.4, DIAM, DIAM),
+		-- le nom porte le numero de LIGNE : le compte a rebours allume
+		-- une ligne entiere a la fois, toutes colonnes confondues.
+		local amp = bloc(col, "Ampoule" .. r, Vector3.new(1.4, DIAM, DIAM),
 			panneau.CFrame * CFrame.new(dx, dy, 1.6)
 			               * CFrame.Angles(0, math.rad(-90), 0),
 			Enum.Material.SmoothPlastic, ETEINT)

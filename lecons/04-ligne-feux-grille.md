@@ -162,3 +162,56 @@ eteindreTout()          -- GO : le chrono démarre ICI
 Et le chrono suivra **le joueur**, pas la voiture : comme on est assis dans le
 siège, le personnage se déplace avec elle. Ça marche donc avec n'importe
 quelle voiture.
+
+---
+
+## 9. Le compte à rebours (ajouté en fin de séance)
+
+Les feux marchent. La séquence :
+
+| Temps | Ce qu'on voit |
+|---|---|
+| 0 s | ligne 1 (en haut) rouge |
+| 1 s | lignes 1 **et** 2 rouges |
+| 2 s | les 3 lignes rouges |
+| 3 s | **tout vert → départ** |
+
+### L'idée qui rend le code simple
+
+Les ampoules s'appellent `Ampoule1`, `Ampoule2`, `Ampoule3` **dans chaque
+colonne**. Le numéro désigne donc la **ligne**, pas la colonne. Allumer une
+ligne entière devient :
+
+```lua
+for _, colonne in ipairs(feux:GetChildren()) do
+    local a = colonne:FindFirstChild("Ampoule" .. n)
+    ...
+end
+```
+
+Et toute la séquence tient en trois lignes, **sans éteindre la précédente** :
+
+```lua
+for n = 1, 3 do
+    peindre(ligne(n), ROUGE, true)
+    task.wait(1)
+end
+```
+
+### Le piège : la couleur ne suffit pas
+
+Une ampoule rouge vif en `SmoothPlastic` reste **terne**. C'est la matière
+`Neon` qui donne l'effet « allumé », parce qu'elle émet sa propre lumière.
+Il faut changer **trois** choses ensemble :
+
+```lua
+a.Color = couleur                                   -- 1. la couleur
+a.Material = allumee and Enum.Material.Neon or ...  -- 2. la matiere
+lumiere.Enabled = allumee                           -- 3. le PointLight
+```
+
+### Tester sans lancer Play
+
+Plutôt que d'appuyer sur Play et de regarder, on a rejoué les quatre étapes
+dans la Command Bar en **relevant l'état des 12 ampoules** à chaque fois.
+Le résultat se lit en une seconde, et on est sûr des chiffres.
