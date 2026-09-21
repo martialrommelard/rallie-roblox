@@ -13,7 +13,7 @@ tremplin**, chronomètre, records et podium, jouable à plusieurs.
 
 | | |
 |---|---|
-| Longueur du tour | 3076 studs (~43 secondes) |
+| Longueur du tour | 3083 studs (~44 secondes) |
 | Dénivelé | 59 studs entre la vallée et le sommet |
 | Virage le plus serré | 43 studs de rayon |
 | Pente maximale | 21,9 % (la réception du tremplin) |
@@ -21,6 +21,23 @@ tremplin**, chronomètre, records et podium, jouable à plusieurs.
 
 Un tour : **grande ligne droite → épingle → montée → lacet → tunnel dans la
 montagne → descente → tremplin → dernier virage**.
+
+## La zone de départ
+
+Elle n'est posée nulle part « à la main » : tout se place **par rapport au 8e
+morceau de route**, donc si le tracé change, la ligne, le portique et la grille
+suivent.
+
+| Objet | Ce que c'est |
+|---|---|
+| `Circuit/Damier` | 36 cases enterrées dans le bitume (0,02 stud dépasse) |
+| `Circuit/LigneDepart` | une Part invisible — **c'est elle que le chrono lira** |
+| `Circuit/FeuxDepart` | portique à 58 studs, 5 colonnes de 3 feux, éteints |
+| `Circuit/Grille` | 6 emplacements en quinconce, tracé sobre |
+
+Changer `NB_COL` change le nombre de colonnes de feux **et** la largeur du
+panneau **et** l'espacement des ampoules : rien n'est écrit en dur.
+Changer `H_MAT` monte ou descend tout le portique.
 
 ## Les fichiers
 
@@ -58,7 +75,9 @@ variété du circuit, pas le lissage.
 
 ## Ce qui reste à faire
 
-- [ ] Le chronomètre (ligne départ/arrivée + checkpoints anti-triche)
+- [ ] Le **compte à rebours** : allumer `Feu1`…`Feu5`, tout éteindre → départ
+- [ ] Le **chronomètre** (`Circuit/LigneDepart` existe déjà et l'attend)
+- [ ] Les **checkpoints** anti-triche
 - [ ] Le temps affiché à l'écran
 - [ ] Le classement et le podium
 - [ ] Les écuries : choisir sa voiture au garage

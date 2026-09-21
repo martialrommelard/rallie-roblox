@@ -7,10 +7,11 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-09-16
+### État au 2026-09-21
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
+**La zone de départ : TERMINÉE ✅ — ligne, portique, grille**
 
 Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
 `Projet de circuit`, placeId 99826427812339) et il est jouable.
@@ -23,23 +24,26 @@ Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
 | Épingle | élargie à 55–66 studs (elle faisait 42–46) |
 | Tremplin | trou de 30 studs, il faut 47 studs/s |
 | Fosse à piques | 21 piques + zone de mort, 57 studs de chute |
+| **Objets dans `Circuit`** | **2281** |
 
 Un tour : ligne droite → épingle → montée → lacet → tunnel → descente →
 tremplin (+ fosse à piques) → dernier virage.
 
-### ⚠️ À VÉRIFIER EN PREMIER la prochaine fois
+### La zone de départ (ajoutée le 2026-09-21)
 
-Le générateur a reçu la montagne, l'éboulis et le podium (859 lignes), mais
-il **n'a jamais été exécuté depuis**. Il a été vérifié à l'œil et par des
-contrôles (équilibre `if`/`end`, portée des variables, nombre d'arguments du
-diagnostic), mais ça ne remplace pas un vrai essai.
+Tout est posé sur le 8e morceau de route (`segments[8]`), jamais à une
+position écrite en dur.
 
-**Premier geste en reprenant** : coller `scripts/GenerateurCircuit.lua` dans la
-Command Bar et regarder ce qu'il affiche. S'il y a une erreur, elle est dans la
-partie ajoutée le 2026-09-16 (à partir de la ligne 460, section LA MONTAGNE).
+| Objet | Ce que c'est | À quoi ça sert |
+|---|---|---|
+| `Circuit/LigneDepart` | Part invisible 60 × 10 × 15 | **c'est elle que le chrono lira** |
+| `Circuit/Damier` | 36 cases de 5 × 5 enterrées dans le bitume | ce qu'on voit |
+| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu5` | le compte à rebours |
+| `Circuit/Grille` | 6 emplacements en quinconce, 18 traits | la grille de départ |
 
-Le décor actuel de la place a été construit à la main, commande par commande :
-si le générateur plante, la place reste correcte tant qu'on ne l'a pas relancé.
+Les 15 ampoules (5 colonnes × 3) sont **éteintes** : chacune a déjà son
+`PointLight` avec `Enabled = false`. Allumer un feu = `Enabled = true`
+et changer la couleur.
 
 ### ⚠️ La première chose à faire en reprenant
 
@@ -51,27 +55,48 @@ si le générateur plante, la place reste correcte tant qu'on ne l'a pas relanc�
 3. **Penser à sauvegarder la place** (`Ctrl+S` dans Studio) — le générateur est
    sauvegardé sur GitHub, mais la place Roblox, non.
 
+### État de vérification du générateur (1009 lignes)
+
+| Partie | Vérifiée comment |
+|---|---|
+| Circuit, tremplin, montagne, podium | exécutée, le résultat est dans la place |
+| Ligne, damier, portique, grille | **les 3 blocs ont été exécutés mot pour mot** le 2026-09-21 |
+| Le fichier entier d'un seul tenant | ❌ **jamais relancé en une seule fois** |
+
+Blocs équilibrés : 109 ouvrants (`function`/`if`/`for`/`while`) pour 109 `end`.
+C'est un contrôle de structure, pas une preuve que tout le fichier tourne.
+
 ### Ce qui n'est PAS encore fait
 
-- ❌ Pas de chrono, pas de checkpoints, pas de podium
-- ❌ La voiture vient du Toolbox, elle n'est pas configurée proprement
-- ❌ Aucun décor autre que les arbres et les rochers du circuit
+- ❌ Pas de chrono, pas de checkpoints
+- ❌ Le compte à rebours des feux (ils existent mais restent éteints)
+- ⚠️ **Deux voitures traînent dans le Workspace** : une Bugatti La Voiture
+  Noire et une Koenigsegg Jesko (dans `Workspace.Model`). À ranger dans un
+  dossier `Voitures` — ça servira pour les écuries (étape 6).
 - ⚠️ **Mon script est dans `Workspace > Baseplate > Piques`**, pas dans
   `ServerScriptService`. Il marche très bien là, mais si je supprime le sol je
   perds le script : le glisser dans `ServerScriptService` serait plus sûr.
+- ⚠️ Les sons du moteur ne se chargent pas : les assets du modèle Toolbox ne
+  m'appartiennent pas (`not authorized to access Asset`). La voiture est muette.
 
-### La prochaine étape : LE CHRONOMÈTRE
+### La prochaine étape : LE COMPTE À REBOURS + LE CHRONOMÈTRE
 
-Il faut, dans l'ordre :
-1. La Part `LigneDepart` (elle existe déjà dans le dossier `Circuit`)
-2. Détecter quand une voiture la franchit
-3. Une variable qui retient l'heure de départ
+C'est **un seul et même script** : les feux s'allument un par un, le dernier
+s'éteint, et le chrono démarre à cet instant précis.
+
+1. Allumer `Feu1` à `Feu5` une seconde après l'autre (`for i = 1, 5`)
+2. Tout éteindre → **départ**, on note l'heure avec `os.clock()`
+3. Détecter quand un joueur franchit `Circuit/LigneDepart`
 4. Des checkpoints le long du circuit pour empêcher de couper
 
 ⚠️ Pour la détection, **ne pas repartir sur `Touched`** : je m'y suis cassé les
-dents avec les piques. Réutiliser la méthode du script `Piques` (regarder la
+dents avec les piques, et de toute façon `LigneDepart` est en
+`CanCollide = false`. Réutiliser la méthode du script `Piques` (regarder la
 position à chaque image avec `Heartbeat`), qui elle est fiable.
 
+💡 **L'idée qui simplifie tout** : le chrono ne suit pas la voiture, il suit
+**le joueur**. Comme on est assis dans le siège, le personnage se déplace avec
+la voiture. Ça marche donc avec la Bugatti, la Koenigsegg, ou même à pied.
 
 ---
 
@@ -88,6 +113,10 @@ position à chaque image avec `Heartbeat`), qui elle est fiable.
 | **Boucles** (`for ... in ipairs(...) do`) | 2026-09-16 | Le script `Piques` |
 | **Événements** : `Heartbeat` (60 fois/s) | 2026-09-16 | Le script `Piques` |
 | Pourquoi `Touched` est peu fiable | 2026-09-16 | Découvert en déboguant les piques |
+| **Boucles imbriquées** (`for` dans un `for`) | 2026-09-21 | Le damier et le panneau de feux |
+| **CFrame relatif** (`a.CFrame * CFrame.new(x, y, z)`) | 2026-09-21 | Tout poser *par rapport à* la route |
+| **Paramétrer au lieu d'écrire en dur** | 2026-09-21 | `NB_COL`, `H_MAT` : un chiffre change tout |
+| **Raycast** pour vérifier son propre travail | 2026-09-21 | Chaque trait de grille est-il sur le bitume ? |
 
 ✅ **J'ai écrit mon premier script le 2026-09-16** : la fosse à piques.
 
@@ -149,6 +178,38 @@ position à chaque image avec `Heartbeat`), qui elle est fiable.
 
 ⚠️ Le circuit est passé de 877 à environ 2160 objets. Si ça rame en jeu,
 c'est l'éboulis qu'il faudra alléger en premier.
+
+---
+
+### 2026-09-21 — la zone de départ
+- **La ligne de départ avait disparu du jeu.** Elle était pourtant écrite dans
+  le générateur : preuve qu'un fichier juste ne suffit pas, il faut l'exécuter.
+- En la refaisant, j'ai trouvé **pourquoi** elle n'allait pas : sa position
+  était écrite **en dur** (`-230 ; 486`) alors que le tracé, lui, est *calculé*
+  par la spline. Elle dépassait de 6 studs d'un côté du bitume et laissait un
+  trou de l'autre. Corrigé en demandant sa position **à la route elle-même**
+  (`segments[8].p.CFrame`).
+- **Damier** de 36 cases, **enterré** dans l'asphalte : 0,5 stud d'épaisseur
+  dont 0,02 seulement dépasse. Ça donne de la peinture sur la route, pas une
+  marche — et le décalage de 0,02 évite le z-fighting.
+- **Portique** à 58 studs avec **5 colonnes de 3 ampoules** (15 feux éteints),
+  chacune avec son `PointLight` déjà prêt.
+- **Grille de départ** : 6 emplacements en quinconce, tracé sobre.
+- J'ai essayé 5 colonnes, puis 3, puis 4, puis 5 : à chaque fois **un seul
+  chiffre à changer**, parce que la largeur du panneau et l'espacement des
+  ampoules se *déduisent* de `NB_COL`. À la main, ça aurait été 10 minutes de
+  repositionnement à chaque essai.
+
+**Ce que j'ai appris en me plantant** :
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Position de la ligne écrite en dur | elle dépassait de 6 studs | dans un circuit *calculé*, on ne devine jamais une position : on la **demande** à la route |
+| Peinture posée à la même hauteur que le bitume | ça clignote | il faut toujours décaler, même de 0,02 stud |
+| Cylindre orienté par défaut | on voit la tranche, pas le rond | un cylindre présente ses faces rondes sur son axe **X** → `CFrame.Angles(0, math.rad(-90), 0)` |
+| Grille posée en prolongeant la ligne droite | partirait dans l'herbe si la piste tournait | **remonter la piste segment par segment** en comptant les studs |
+| `NB_RANGS` déclaré deux fois | Lua l'accepte en silence | renommer, sinon on lit une valeur en croyant en lire une autre |
+| « la voiture est ancrée, elle ne roulera pas » | fausse alerte de ma part | **A-Chassis désancre tout seul** au lancement |
 
 ---
 

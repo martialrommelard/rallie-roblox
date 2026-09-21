@@ -270,3 +270,148 @@ local EPAISSEUR, PAS, ECHELLE = 2, 18, 0.85
 - `PAS` : longueur d'un morceau de route. Plus petit = plus lisse, mais plus de
   blocs (donc le jeu rame).
 - `ECHELLE` : agrandit ou réduit tout le circuit d'un coup. `0.85` actuellement.
+
+---
+
+## 8. La zone de départ : ligne, portique, grille
+
+### Le problème de départ
+
+La ligne d'arrivée existait dans le générateur mais **avait disparu du jeu**.
+En la refaisant, j'ai compris qu'elle était fausse depuis le début :
+
+```lua
+-- AVANT : la position est écrite en dur
+ligne.CFrame = CFrame.lookAt(Vector3.new(-230*ECHELLE, 1.3, 486*ECHELLE),
+                             Vector3.new(0, 1.3, 480*ECHELLE))
+```
+
+Le circuit est **calculé** par la spline. Écrire `-230 ; 486` à la main, c'est
+deviner où la spline est passée. Résultat mesuré : la ligne dépassait de
+**6 studs** d'un côté du bitume et laissait un trou de l'autre.
+
+```lua
+-- APRÈS : on DEMANDE sa position à la route
+local SEG_DEPART = 8
+local rDep  = segments[SEG_DEPART].p
+local largD = rDep.Size.X               -- la largeur exacte, à cet endroit
+ligne.CFrame = rDep.CFrame * CFrame.new(0, dessD + 5, 0)
+```
+
+C'est le même piège que la rampe du tremplin (section 5). **Dans un circuit
+généré, on ne devine jamais une position : on la demande.**
+
+### La ligne est en DEUX morceaux
+
+| Objet | Visible ? | Rôle |
+|---|---|---|
+| `LigneDepart` | non (`Transparency = 1`) | la zone que le chrono va lire |
+| `Damier` | oui, 36 cases | ce que le joueur voit |
+
+Séparer les deux évite un piège : une belle ligne en damier faite de 36 Parts
+serait pénible à tester (« quelle case a été touchée ? »), alors qu'une seule
+Part invisible se teste en une ligne de code.
+
+### Peindre sur la route sans faire de marche
+
+```lua
+local EP_CASE = 0.5
+local yCase   = dessD + 0.02 - EP_CASE/2
+```
+
+La case fait 0,5 stud d'épaisseur mais elle est **enterrée** : seuls 0,02 stud
+dépassent du bitume. Deux effets :
+
+- `CanCollide = false` + affleurement = **aucune bosse** sous les roues ;
+- le décalage de 0,02 évite le **z-fighting** (section 5) : à hauteur
+  exactement égale, les deux surfaces clignotent.
+
+### Orienter les ampoules
+
+Les voitures roulent vers le **-Z local** de la route, donc elles arrivent du
+côté **+Z**. Les feux doivent regarder vers +Z.
+
+Un `Part` en `Shape = Cylinder` présente ses faces rondes sur son axe **X**.
+Sans rotation, le pilote verrait la tranche :
+
+```lua
+amp.CFrame = panneau.CFrame * CFrame.new(dx, dy, 1.4)
+                            * CFrame.Angles(0, math.rad(-90), 0)
+```
+
+Une rotation de -90° autour de Y envoie l'axe X local sur le +Z local.
+
+### Le panneau se déduit, il ne se dessine pas
+
+```lua
+local NB_COL, NB_RANGS, DIAM = 5, 3, 6.5
+local LARG_PAN = NB_COL * (DIAM + 3.5)
+local PAS_F    = LARG_PAN / NB_COL
+local dx       = -LARG_PAN/2 + PAS_F/2 + (i - 1) * PAS_F
+```
+
+J'ai essayé 5 colonnes, puis 3, puis 4, puis 5. À chaque fois **un seul chiffre
+à changer** : le panneau se redimensionne et les ampoules se répartissent
+toutes seules. À la main, chaque essai aurait demandé de repositionner 12 à 15
+pièces une par une.
+
+C'est le même principe que le circuit lui-même, appliqué à un petit objet.
+
+### La grille : remonter la piste, pas prolonger une droite
+
+Pour poser 6 emplacements derrière la ligne, le réflexe serait :
+
+```lua
+-- NAÏF : on recule le long de Route8
+base = rDep.CFrame * CFrame.new(x, y, recul)
+```
+
+Ça marche ici parce que le départ est sur une ligne droite. Mais si la ligne se
+retrouvait un jour dans un virage, les emplacements partiraient **tout droit
+dans l'herbe**. Le générateur remonte donc la piste segment par segment en
+comptant les studs parcourus :
+
+```lua
+local ordre, dist, k = {}, 0, SEG_DEPART
+while garde < 60 do
+    local r = segments[k].p
+    table.insert(ordre, {p = r, d = dist})     -- ce segment est à "dist" en arrière
+    if dist > 200 then break end
+    local kp = k - 1; if kp < 1 then kp = #segments end
+    dist += (r.Position - segments[kp].p.Position).Magnitude
+    k = kp
+end
+```
+
+Ensuite `surLaPiste(recul)` rend le segment qui se trouve à cette distance,
+et le reste à parcourir dessus. La grille **suit la courbe** de la piste.
+
+### Vérifier son travail par le calcul
+
+Le générateur vérifie déjà ses talus et ses rochers. Même méthode pour la
+grille : on tire un rayon **vers le bas** depuis chaque trait, en ne gardant
+que le dossier `Route` comme cible.
+
+```lua
+rp.FilterType = Enum.RaycastFilterType.Include
+rp.FilterDescendantsInstances = {circuit.Route}
+if not WS:Raycast(p.Position + Vector3.new(0,4,0), Vector3.new(0,-12,0), rp) then
+    horsPiste += 1
+end
+```
+
+Résultat : **0 trait sur 18 hors du bitume**. C'est plus rapide et plus sûr que
+de tourner autour à la caméra.
+
+### Ce qui attend le chrono
+
+Les 15 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
+colonnes s'appellent `Feu1` à `Feu5`. Le compte à rebours sera donc :
+
+```lua
+for i = 1, 5 do
+    allumer(feux["Feu" .. i])
+    task.wait(1)
+end
+eteindreTout()          -- GO : c'est ici que le chrono démarre
+```
