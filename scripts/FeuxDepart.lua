@@ -3,16 +3,17 @@
 --  A placer dans ServerScriptService (c est un Script, pas un
 --  LocalScript : les feux doivent etre les memes pour tout le monde).
 --
---  Le portique a 4 colonnes de 3 ampoules. Le compte a rebours se lit
---  LIGNE par LIGNE, pas colonne par colonne :
+--  LE DEPART N EST PLUS AUTOMATIQUE. Il attend que quelqu un s asseye
+--  dans une voiture :
 --
---     0 s : la ligne 1 (en haut) devient ROUGE
---     1 s : la ligne 2 devient rouge AUSSI (la 1 reste allumee)
---     2 s : la ligne 3 devient rouge AUSSI
---     3 s : tout passe au VERT  ->  DEPART
+--     je m assois  ->  5 secondes pour me preparer
+--     puis  0 s : la ligne 1 (en haut) devient ROUGE
+--           1 s : la ligne 2 devient rouge AUSSI (la 1 reste allumee)
+--           2 s : la ligne 3 devient rouge AUSSI
+--           3 s : tout passe au VERT  ->  DEPART
 --
---  C est pour ca que les ampoules s appellent Ampoule1, Ampoule2 et
---  Ampoule3 dans chaque colonne : le numero, c est la LIGNE.
+--  Les ampoules s appellent Ampoule1, Ampoule2 et Ampoule3 dans chaque
+--  colonne : le numero, c est la LIGNE.
 -- ============================================================
 
 local feux = workspace:WaitForChild("Circuit"):WaitForChild("FeuxDepart")
@@ -22,10 +23,9 @@ local VERT   = Color3.fromRGB(60, 255, 110)
 local ETEINT = Color3.fromRGB(58, 16, 16)
 
 local NB_LIGNES = 3
+local ATTENTE   = 5    -- secondes entre le moment ou je m assois et les feux
 local DUREE     = 1    -- secondes entre deux lignes
 local VERT_TENU = 3    -- combien de temps le vert reste allume
-local RELANCE   = 20   -- PROVISOIRE : on rejoue le depart en boucle pour
-                       -- pouvoir le regarder. Le CHRONO remplacera ca.
 
 -- Rend toutes les ampoules d une meme LIGNE, quelle que soit la colonne.
 local function ligne(n)
@@ -62,7 +62,6 @@ end
 
 local function compteARebours()
 	toutEteindre()
-	task.wait(1)
 
 	-- On n eteint PAS la ligne precedente : elles s ajoutent.
 	for n = 1, NB_LIGNES do
@@ -80,8 +79,42 @@ local function compteARebours()
 	toutEteindre()
 end
 
-toutEteindre()
-while true do
-	compteARebours()
-	task.wait(RELANCE)
+-- ============================================================
+--  QUI DECLENCHE LE DEPART ?
+--  Un VehicleSeat a une propriete "Occupant" : elle vaut nil quand le
+--  siege est vide, et le Humanoid du pilote quand quelqu un est assis.
+--  On ecoute donc le CHANGEMENT de cette propriete.
+--
+--  "enCours" evite qu un deuxieme joueur qui s assoit pendant le compte
+--  a rebours ne le relance depuis le debut.
+-- ============================================================
+local enCours = false
+
+local function surveillerSiege(siege)
+	siege:GetPropertyChangedSignal("Occupant"):Connect(function()
+		if siege.Occupant and not enCours then
+			enCours = true
+			print("Pilote installe - depart dans " .. ATTENTE .. " secondes")
+			task.wait(ATTENTE)
+			compteARebours()
+			enCours = false
+		end
+	end)
 end
+
+-- les sieges deja la au lancement
+for _, d in ipairs(workspace:GetDescendants()) do
+	if d:IsA("VehicleSeat") then
+		surveillerSiege(d)
+	end
+end
+
+-- et ceux qui arriveront plus tard (quand on ajoutera le garage et les
+-- ecuries, les voitures apparaitront en cours de partie)
+workspace.DescendantAdded:Connect(function(d)
+	if d:IsA("VehicleSeat") then
+		surveillerSiege(d)
+	end
+end)
+
+toutEteindre()

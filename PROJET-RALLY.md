@@ -140,3 +140,9 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
   feraient 66 studs alors que la piste en fait 60 : impossible de donner à
   chacune son couloir sans élargir la piste. Les places 1/3/5 sont donc dans
   le même couloir, comme sur une vraie grille.
+- Le compte à rebours ne part plus tout seul au lancement : **il attend que le
+  pilote soit assis**. Un `VehicleSeat` a une propriété `Occupant` qui vaut
+  `nil` quand le siège est vide ; on écoute son changement avec
+  `GetPropertyChangedSignal("Occupant")`. Ensuite 5 secondes (`ATTENTE`),
+  puis les feux. Un verrou `enCours` empêche qu'un deuxième pilote qui
+  s'assoit pendant le compte à rebours ne le relance depuis le début.

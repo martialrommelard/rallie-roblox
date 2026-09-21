@@ -99,9 +99,9 @@ position à chaque image avec `Heartbeat`), qui elle est fiable.
 **le joueur**. Comme on est assis dans le siège, le personnage se déplace avec
 la voiture. Ça marche donc avec la Bugatti, la Koenigsegg, ou même à pied.
 
-⚠️ `FeuxDepart.lua` tourne en **boucle toutes les 20 secondes** (constante
-`RELANCE`) : c'est provisoire, juste pour pouvoir regarder la séquence. Quand
-le chrono sera là, c'est lui qui déclenchera le départ.
+⚠️ `FeuxDepart.lua` ne part plus tout seul : il attend que quelqu'un **s'asseye
+dans une voiture**, puis 5 secondes (constante `ATTENTE`), puis les feux.
+C'est la propriété `Occupant` du `VehicleSeat` qu'il surveille.
 
 ---
 
