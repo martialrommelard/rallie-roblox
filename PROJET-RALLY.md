@@ -115,3 +115,10 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
   la voiture au lancement — l'ancrage visible dans l'Explorer n'est donc pas
   un problème.
 - Prochaine étape : le **chrono**, qui lira la zone invisible `LigneDepart`.
+- **Grille de départ** : 6 emplacements, 3 de chaque côté, en quinconce.
+  Tracé sobre — le trait à ne pas dépasser et les deux côtés, pas de numéro.
+  Boîtes de 8 x 13 studs, de 22 à 77 studs derrière la ligne.
+  Le placement **remonte la piste segment par segment** en comptant les studs,
+  au lieu de prolonger la ligne droite dans le vide : si la ligne d'arrivée se
+  retrouvait un jour dans un virage, la grille suivrait la courbe.
+  Vérifié par un tir de rayon vers le bas : les 18 traits touchent le bitume.

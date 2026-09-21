@@ -890,6 +890,62 @@ for i = 1, NB_COL do
 	end
 end
 
+-- ============================================================
+--  LA GRILLE DE DEPART (6 emplacements)
+--  On ne prolonge PAS la ligne droite dans le vide : on REMONTE
+--  la piste segment par segment en comptant les studs. Si la ligne
+--  se retrouvait un jour dans un virage, la grille suivrait la
+--  courbe au lieu de filer dans l herbe.
+--  Trace volontairement SOBRE : le trait a ne pas depasser et les
+--  deux cotes, rien d autre. Peinture enterree comme le damier.
+-- ============================================================
+local fGrille = dossier("Grille")
+
+local ordre, dist, k, garde = {}, 0, SEG_DEPART, 0
+while garde < 60 do
+	garde += 1
+	local r = segments[k].p
+	table.insert(ordre, {p = r, d = dist})
+	if dist > 140 then break end
+	local kp = k - 1; if kp < 1 then kp = #segments end
+	dist += (r.Position - segments[kp].p.Position).Magnitude
+	k = kp
+end
+
+-- le point situe a "recul" studs DERRIERE la ligne
+local function surLaPiste(recul)
+	local e = ordre[1]
+	for _, c in ipairs(ordre) do
+		if c.d <= recul then e = c else break end
+	end
+	return e.p.CFrame, recul - e.d
+end
+
+local NB_PLACES = 6
+local LARG_BOX, LONG_BOX = 8, 13
+local EP_TRAIT, EP_PEINT = 0.6, 0.5
+local yP       = dessD + 0.02 - EP_PEINT/2
+local LATERAL  = 13                  -- ecart du centre de la piste
+local RECUL_1  = 22                  -- la pole est a 22 studs de la ligne
+local DECALAGE = 11                  -- chaque place recule de 11 de plus
+local BLANC    = Color3.fromRGB(248, 248, 248)
+
+for n = 1, NB_PLACES do
+	local cote = (n % 2 == 1) and -1 or 1        -- pole a gauche, puis on alterne
+	local cf, reste = surLaPiste(RECUL_1 + (n - 1) * DECALAGE)
+	local m = Instance.new("Model"); m.Name = "Place" .. n; m.Parent = fGrille
+	local base = cf * CFrame.new(cote * LATERAL, yP, reste)
+
+	local av = bloc(m, "Avant", Vector3.new(LARG_BOX, EP_PEINT, EP_TRAIT),
+		base * CFrame.new(0, 0, -LONG_BOX/2), Enum.Material.SmoothPlastic, BLANC)
+	av.CanCollide = false
+	for _, s in ipairs({-1, 1}) do
+		local ct = bloc(m, "Cote", Vector3.new(EP_TRAIT, EP_PEINT, LONG_BOX),
+			base * CFrame.new(s * LARG_BOX/2, 0, 0), Enum.Material.SmoothPlastic, BLANC)
+		ct.CanCollide = false
+	end
+end
+
 local sp = WS:FindFirstChild("SpawnLocation")
 if sp then
 	sp.Anchored = true
