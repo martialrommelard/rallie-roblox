@@ -101,12 +101,15 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
   + affleurement = aucune bosse sous les roues, et le décalage de 0,02 évite le
   clignotement (z-fighting) qu'on avait déjà eu sur la route.
 - **Portique de départ** au-dessus de la ligne : deux mâts hors des barrières,
-  une poutre à 39 studs, un panneau et **5 colonnes de 2 ampoules**, éteintes.
+  une poutre à 58 studs, un panneau et **5 colonnes de 3 ampoules** (15 feux), éteintes.
   Les cylindres présentent leurs faces rondes sur leur axe **X** : il faut les
   tourner de -90° autour de Y pour qu'ils regardent le pilote. Les voitures
   arrivent du côté local **+Z** de la route.
 - Les 5 colonnes s'appellent `Feu1` à `Feu5` : le compte à rebours sera une
-  boucle `for i = 1, 5`.
+  boucle `for i = 1, 5`. Largeur et hauteur du panneau se **deduisent** de
+  `NB_COL` et `NB_RANGS` : changer ces deux nombres suffit, rien d'autre.
+- Pour monter ou descendre le portique, un seul nombre : `H_MAT`. En le montant
+  il a fallu aussi **épaissir les mâts** (`EP_MAT`), sinon ils font fil de fer.
 - Découvert au passage : il y a **deux voitures** dans le jeu (une Bugatti et
   une Koenigsegg dans `Workspace.Model`), et A-Chassis **désancre tout seul**
   la voiture au lancement — l'ancrage visible dans l'Explorer n'est donc pas
