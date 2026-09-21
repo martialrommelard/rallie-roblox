@@ -344,13 +344,13 @@ Une rotation de -90° autour de Y envoie l'axe X local sur le +Z local.
 ### Le panneau se déduit, il ne se dessine pas
 
 ```lua
-local NB_COL, NB_RANGS, DIAM = 5, 3, 6.5
+local NB_COL, NB_RANGS, DIAM = 4, 3, 6.5
 local LARG_PAN = NB_COL * (DIAM + 3.5)
 local PAS_F    = LARG_PAN / NB_COL
 local dx       = -LARG_PAN/2 + PAS_F/2 + (i - 1) * PAS_F
 ```
 
-J'ai essayé 5 colonnes, puis 3, puis 4, puis 5. À chaque fois **un seul chiffre
+J'ai essayé 5 colonnes, puis 3, puis 4. À chaque fois **un seul chiffre
 à changer** : le panneau se redimensionne et les ampoules se répartissent
 toutes seules. À la main, chaque essai aurait demandé de repositionner 12 à 15
 pièces une par une.
@@ -405,11 +405,11 @@ de tourner autour à la caméra.
 
 ### Ce qui attend le chrono
 
-Les 15 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
-colonnes s'appellent `Feu1` à `Feu5`. Le compte à rebours sera donc :
+Les 12 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
+colonnes s'appellent `Feu1` à `Feu4`. Le compte à rebours sera donc :
 
 ```lua
-for i = 1, 5 do
+for i = 1, 4 do
     allumer(feux["Feu" .. i])
     task.wait(1)
 end

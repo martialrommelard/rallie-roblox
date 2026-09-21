@@ -38,10 +38,10 @@ position écrite en dur.
 |---|---|---|
 | `Circuit/LigneDepart` | Part invisible 60 × 10 × 15 | **c'est elle que le chrono lira** |
 | `Circuit/Damier` | 36 cases de 5 × 5 enterrées dans le bitume | ce qu'on voit |
-| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu5` | le compte à rebours |
+| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu4` | le compte à rebours |
 | `Circuit/Grille` | 6 emplacements en quinconce, 18 traits | la grille de départ |
 
-Les 15 ampoules (5 colonnes × 3) sont **éteintes** : chacune a déjà son
+Les 12 ampoules (4 colonnes × 3) sont **éteintes** : chacune a déjà son
 `PointLight` avec `Enabled = false`. Allumer un feu = `Enabled = true`
 et changer la couleur.
 
@@ -84,7 +84,7 @@ C'est un contrôle de structure, pas une preuve que tout le fichier tourne.
 C'est **un seul et même script** : les feux s'allument un par un, le dernier
 s'éteint, et le chrono démarre à cet instant précis.
 
-1. Allumer `Feu1` à `Feu5` une seconde après l'autre (`for i = 1, 5`)
+1. Allumer `Feu1` à `Feu4` une seconde après l'autre (`for i = 1, 4`)
 2. Tout éteindre → **départ**, on note l'heure avec `os.clock()`
 3. Détecter quand un joueur franchit `Circuit/LigneDepart`
 4. Des checkpoints le long du circuit pour empêcher de couper
@@ -192,10 +192,10 @@ c'est l'éboulis qu'il faudra alléger en premier.
 - **Damier** de 36 cases, **enterré** dans l'asphalte : 0,5 stud d'épaisseur
   dont 0,02 seulement dépasse. Ça donne de la peinture sur la route, pas une
   marche — et le décalage de 0,02 évite le z-fighting.
-- **Portique** à 58 studs avec **5 colonnes de 3 ampoules** (15 feux éteints),
+- **Portique** à 58 studs avec **4 colonnes de 3 ampoules** (12 feux éteints),
   chacune avec son `PointLight` déjà prêt.
 - **Grille de départ** : 6 emplacements en quinconce, tracé sobre.
-- J'ai essayé 5 colonnes, puis 3, puis 4, puis 5 : à chaque fois **un seul
+- J'ai essayé 5 colonnes, puis 3, puis 4 : à chaque fois **un seul
   chiffre à changer**, parce que la largeur du panneau et l'espacement des
   ampoules se *déduisent* de `NB_COL`. À la main, ça aurait été 10 minutes de
   repositionnement à chaque essai.

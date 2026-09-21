@@ -32,7 +32,7 @@ suivent.
 |---|---|
 | `Circuit/Damier` | 36 cases enterrées dans le bitume (0,02 stud dépasse) |
 | `Circuit/LigneDepart` | une Part invisible — **c'est elle que le chrono lira** |
-| `Circuit/FeuxDepart` | portique à 58 studs, 5 colonnes de 3 feux, éteints |
+| `Circuit/FeuxDepart` | portique à 58 studs, 4 colonnes de 3 feux, éteints |
 | `Circuit/Grille` | 6 emplacements en quinconce, tracé sobre |
 
 Changer `NB_COL` change le nombre de colonnes de feux **et** la largeur du
@@ -75,7 +75,7 @@ variété du circuit, pas le lissage.
 
 ## Ce qui reste à faire
 
-- [ ] Le **compte à rebours** : allumer `Feu1`…`Feu5`, tout éteindre → départ
+- [ ] Le **compte à rebours** : allumer `Feu1`…`Feu4`, tout éteindre → départ
 - [ ] Le **chronomètre** (`Circuit/LigneDepart` existe déjà et l'attend)
 - [ ] Les **checkpoints** anti-triche
 - [ ] Le temps affiché à l'écran

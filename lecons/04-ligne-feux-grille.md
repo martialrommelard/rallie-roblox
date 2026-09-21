@@ -8,7 +8,7 @@
 1. Constaté que **la ligne de départ avait disparu** du jeu
 2. Découvert qu'elle était **fausse depuis le début** (position écrite en dur)
 3. Refait la ligne en la calant sur la route + un **damier enterré**
-4. Construit un **portique** avec 15 feux éteints
+4. Construit un **portique** avec 12 feux éteints
 5. Tracé une **grille de départ** de 6 emplacements
 6. Vérifié le tout **par le calcul**, pas à l'œil
 
@@ -90,16 +90,16 @@ voitures qui arrivent.
 ## 6. Un seul chiffre pour tout changer
 
 C'est le moment le plus parlant de la séance. J'ai essayé le panneau avec
-5 colonnes, puis 3, puis 4, puis 5. À chaque fois, **un seul chiffre change** :
+5 colonnes, puis 3, puis 4. À chaque fois, **un seul chiffre change** :
 
 ```lua
-local NB_COL = 5              -- <<< ici
+local NB_COL = 4              -- <<< ici
 local LARG_PAN = NB_COL * (DIAM + 3.5)     -- la largeur se DÉDUIT
 local PAS_F    = LARG_PAN / NB_COL         -- l'espacement aussi
 ```
 
 Le panneau se redimensionne, les ampoules se répartissent. Si j'avais posé les
-15 ampoules à la main, chaque essai m'aurait pris dix minutes.
+12 ampoules à la main, chaque essai m'aurait pris dix minutes.
 
 C'est la même idée que le circuit entier, appliquée à un petit objet.
 
@@ -148,11 +148,11 @@ vrille dès que je bougeais dans le viewport.
 
 ## La prochaine fois
 
-Les 15 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
-colonnes s'appellent `Feu1` à `Feu5`. Donc le compte à rebours, c'est :
+Les 12 ampoules ont déjà leur `PointLight` avec `Enabled = false`, et les
+colonnes s'appellent `Feu1` à `Feu4`. Donc le compte à rebours, c'est :
 
 ```lua
-for i = 1, 5 do
+for i = 1, 4 do
     allumer("Feu" .. i)
     task.wait(1)
 end

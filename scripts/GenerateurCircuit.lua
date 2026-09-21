@@ -836,7 +836,7 @@ end
 --  Un cylindre presente ses faces rondes sur son axe X : il faut
 --  le tourner de -90 degres autour de Y pour qu il nous regarde.
 --  Les feux sont ETEINTS. Le compte a rebours viendra avec le
---  chrono : 5 colonnes -> une boucle "for i = 1, 5".
+--  chrono : 4 colonnes -> une boucle "for i = 1, 4".
 -- ============================================================
 local fFeux = dossier("FeuxDepart")
 local METAL = Color3.fromRGB(58, 58, 62)
@@ -858,10 +858,10 @@ bloc(fFeux, "Poutre", Vector3.new(largD + 16, 3.5, EP_MAT),
 	rDep.CFrame * CFrame.new(0, dessD + H_MAT + 1.75, 0),
 	Enum.Material.Metal, METAL)
 
--- 5 COLONNES de 3 ampoules.
+-- 4 COLONNES de 3 ampoules.
 -- Tout se DEDUIT de ces trois nombres : largeur et hauteur du panneau,
 -- ecartement des ampoules. Changer NB_COL ou NB_RANGS suffit.
-local NB_COL, NB_RANGS, DIAM = 5, 3, 6.5
+local NB_COL, NB_RANGS, DIAM = 4, 3, 6.5
 local ECART_A  = DIAM + 1
 local LARG_PAN = NB_COL * (DIAM + 3.5)
 local HAUT_PAN = NB_RANGS * ECART_A + 3.5
