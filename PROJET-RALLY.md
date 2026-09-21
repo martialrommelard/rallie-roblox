@@ -87,3 +87,28 @@ consacre son temps au circuit, au chrono, aux écuries et au podium.
   vitesse verticale, et la pente à 35 % juste derrière se dérobe. On saute
   si on arrive vite, on descend simplement si on arrive doucement.
 - Étape 1 terminée. Prochaine étape : la voiture puis le CHRONO.
+
+### 2026-09-21 — la ligne de départ et les feux
+- **La ligne de départ manquait dans le jeu** alors qu'elle était bien dans le
+  générateur. En la refaisant j'ai vu pourquoi elle n'allait pas : sa position
+  était écrite **en dur** (`-230 ; 486`) alors que le tracé, lui, est *calculé*.
+  Résultat : elle dépassait de 6 studs d'un côté et laissait un trou de l'autre.
+  Corrigé en demandant sa position **à la route elle-même** (`segments[8]`).
+  C'est la même leçon que pour le tremplin : dans un circuit généré, on ne
+  devine jamais une position, on la demande.
+- **Damier** de 36 cases de 5x5, **enterré** dans l'asphalte : 0,5 stud
+  d'épaisseur dont 0,02 seulement dépasse. Deux raisons : `CanCollide = false`
+  + affleurement = aucune bosse sous les roues, et le décalage de 0,02 évite le
+  clignotement (z-fighting) qu'on avait déjà eu sur la route.
+- **Portique de départ** au-dessus de la ligne : deux mâts hors des barrières,
+  une poutre à 39 studs, un panneau et **5 colonnes de 2 ampoules**, éteintes.
+  Les cylindres présentent leurs faces rondes sur leur axe **X** : il faut les
+  tourner de -90° autour de Y pour qu'ils regardent le pilote. Les voitures
+  arrivent du côté local **+Z** de la route.
+- Les 5 colonnes s'appellent `Feu1` à `Feu5` : le compte à rebours sera une
+  boucle `for i = 1, 5`.
+- Découvert au passage : il y a **deux voitures** dans le jeu (une Bugatti et
+  une Koenigsegg dans `Workspace.Model`), et A-Chassis **désancre tout seul**
+  la voiture au lancement — l'ancrage visible dans l'Explorer n'est donc pas
+  un problème.
+- Prochaine étape : le **chrono**, qui lira la zone invisible `LigneDepart`.

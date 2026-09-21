@@ -787,14 +787,98 @@ bp.Locked = true
 local tex = bp:FindFirstChildOfClass("Texture")
 if tex then tex:Destroy() end
 
+-- ============================================================
+--  LIGNE DE DEPART / ARRIVEE
+--  On ne DEVINE pas sa position : on la demande a la route.
+--  Avant elle etait ecrite en dur (-230 ; 486) : elle depassait
+--  de 6 studs d un cote et laissait un trou de l autre.
+--  Le damier est ENTERRE dans l asphalte (0.5 d epaisseur, dessus
+--  a +0.02) : ca fait de la peinture sur la route, pas une marche.
+--  Le +0.02 n est pas decoratif : a exactement la meme hauteur que
+--  le bitume, les deux surfaces clignotent (z-fighting).
+-- ============================================================
+local SEG_DEPART = 8                  -- 8e morceau de route, sur la ligne droite
+local rDep  = segments[SEG_DEPART].p
+local largD = rDep.Size.X
+local dessD = EPAISSEUR / 2           -- en local : le haut du bitume
+
+-- 1) la zone INVISIBLE : c est elle que lira le chrono
 local ligne = Instance.new("Part")
 ligne.Name = "LigneDepart"; ligne.Anchored = true
-ligne.Size = Vector3.new(62, 0.4, 8)
-ligne.CFrame = CFrame.lookAt(Vector3.new(-230*ECHELLE, 1.3, 486*ECHELLE),
-	Vector3.new(0, 1.3, 480*ECHELLE))
-ligne.Material = Enum.Material.SmoothPlastic
-ligne.Color = Color3.fromRGB(245, 245, 245)
+ligne.CanCollide = false; ligne.Transparency = 1
+ligne.Size = Vector3.new(largD, 10, 15)
+ligne.CFrame = rDep.CFrame * CFrame.new(0, dessD + 5, 0)
 ligne.Parent = circuit
+
+-- 2) le damier : juste pour qu on la voie
+local fDam = dossier("Damier")
+local NB_CASES, NB_RANGS, EP_CASE = 12, 3, 0.5
+local pasD = largD / NB_CASES         -- des cases carrees de ~5 studs
+for rang = 0, NB_RANGS - 1 do
+	for k = 0, NB_CASES - 1 do
+		local blanc = ((k + rang) % 2 == 0)
+		local c = bloc(fDam, "Case", Vector3.new(pasD, EP_CASE, pasD),
+			rDep.CFrame * CFrame.new(
+				-largD/2 + pasD/2 + k * pasD,
+				dessD + 0.02 - EP_CASE/2,
+				-(NB_RANGS * pasD)/2 + pasD/2 + rang * pasD),
+			Enum.Material.SmoothPlastic,
+			blanc and Color3.fromRGB(248, 248, 248) or Color3.fromRGB(24, 24, 26))
+		c.CanCollide = false           -- sinon la voiture tape une marche
+	end
+end
+
+-- ============================================================
+--  LE PORTIQUE ET LES FEUX DE DEPART
+--  Les voitures arrivent du cote local +Z de la route (elles
+--  roulent vers -Z). Les ampoules doivent donc REGARDER vers +Z,
+--  sinon le pilote ne voit que l arriere du panneau.
+--  Un cylindre presente ses faces rondes sur son axe X : il faut
+--  le tourner de -90 degres autour de Y pour qu il nous regarde.
+--  Les feux sont ETEINTS. Le compte a rebours viendra avec le
+--  chrono : 5 colonnes -> une boucle "for i = 1, 5".
+-- ============================================================
+local fFeux = dossier("FeuxDepart")
+local METAL = Color3.fromRGB(58, 58, 62)
+
+local H_MAT = 38                      -- hauteur sous la poutre
+local ECART = largD/2 + 4             -- les mats se plantent hors des barrieres
+
+for _, cote in ipairs({-1, 1}) do
+	bloc(fFeux, "Mat", Vector3.new(3, H_MAT, 3),
+		rDep.CFrame * CFrame.new(cote * ECART, dessD + H_MAT/2, 0),
+		Enum.Material.Metal, METAL)
+	bloc(fFeux, "Socle", Vector3.new(6, 1.5, 6),
+		rDep.CFrame * CFrame.new(cote * ECART, dessD + 0.75, 0),
+		Enum.Material.Concrete, Color3.fromRGB(120, 118, 114))
+end
+
+bloc(fFeux, "Poutre", Vector3.new(largD + 14, 2.5, 3),
+	rDep.CFrame * CFrame.new(0, dessD + H_MAT + 1.25, 0),
+	Enum.Material.Metal, METAL)
+
+local LARG_PAN = 40
+local panneau = bloc(fFeux, "Panneau", Vector3.new(LARG_PAN, 9, 1.5),
+	rDep.CFrame * CFrame.new(0, dessD + H_MAT - 5, 0),
+	Enum.Material.SmoothPlastic, Color3.fromRGB(20, 20, 22))
+
+local ETEINT = Color3.fromRGB(58, 16, 16)
+local PAS_F = LARG_PAN / 5
+for i = 1, 5 do
+	local col = Instance.new("Model"); col.Name = "Feu" .. i; col.Parent = fFeux
+	local dx = -LARG_PAN/2 + PAS_F/2 + (i - 1) * PAS_F
+	for _, dy in ipairs({2.2, -2.2}) do
+		local amp = bloc(col, "Ampoule", Vector3.new(1.2, 3, 3),
+			panneau.CFrame * CFrame.new(dx, dy, 1.4)
+			               * CFrame.Angles(0, math.rad(-90), 0),
+			Enum.Material.SmoothPlastic, ETEINT)
+		amp.Shape = Enum.PartType.Cylinder
+		local l = Instance.new("PointLight")
+		l.Color = Color3.fromRGB(255, 40, 40)
+		l.Brightness = 4; l.Range = 16; l.Enabled = false
+		l.Parent = amp
+	end
+end
 
 local sp = WS:FindFirstChild("SpawnLocation")
 if sp then
