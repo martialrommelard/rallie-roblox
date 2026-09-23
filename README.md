@@ -39,6 +39,27 @@ Changer `NB_COL` change le nombre de colonnes de feux **et** la largeur du
 panneau **et** l'espacement des ampoules : rien n'est écrit en dur.
 Changer `H_MAT` monte ou descend tout le portique.
 
+## La course
+
+Une course complète se joue du début à la fin :
+
+```
+un joueur s'assoit
+   ├─ une cage invisible se referme autour de chaque voiture
+   ├─ 5 s, puis bip + rouge / bip + rouge / bip + rouge   →  3, 2, 1 à l'écran
+   └─ BIIIIP + VERT  →  "GO", les cages disparaissent
+        ↓
+   3 tours comptés au passage de la ligne   →  panneau "TOUR n / 3"
+        ↓
+   "COURSE TERMINÉE", puis les voitures reviennent en grille
+```
+
+Tomber hors du circuit (sous **Y = −60**) tue le pilote et détruit sa voiture.
+
+Les trois scripts serveur se coordonnent par **un seul attribut**,
+`workspace:GetAttribute("CourseEnCours")` : il empêche de relancer un départ
+en pleine course, et déclenche le retour des voitures quand il retombe à faux.
+
 ## Les fichiers
 
 | Fichier | À quoi ça sert |
@@ -48,8 +69,15 @@ Changer `H_MAT` monte ou descend tout le portique.
 | [`PRESENTATION.md`](PRESENTATION.md) | Plan de la présentation orale + réponses aux questions |
 | [`PROGRESSION.md`](PROGRESSION.md) | Où j'en suis, notions de code déjà vues, journal |
 | [`scripts/GenerateurCircuit.lua`](scripts/GenerateurCircuit.lua) | Le générateur de circuit |
-| [`scripts/FeuxDepart.lua`](scripts/FeuxDepart.lua) | Le compte à rebours des feux |
+| [`scripts/FeuxDepart.lua`](scripts/FeuxDepart.lua) | Bips, feux, cages, `3 2 1 GO` |
+| [`scripts/CompteurTours.lua`](scripts/CompteurTours.lua) | Compte les tours, arrête la course à 3 |
+| [`scripts/Voitures.lua`](scripts/Voitures.lua) | Pose la grille, gère les chutes, remet les voitures |
+| [`scripts/EcranDepart.client.lua`](scripts/EcranDepart.client.lua) | **LocalScript** : l'affichage chez le joueur |
 | `lecons/` | Une fiche par étape |
+
+⚠️ Le générateur ne fabrique que le **décor**. Les sons, les cages, les
+voitures et les interfaces vivent dans la place Roblox : ils ne se
+reconstruisent pas tout seuls.
 
 ## Utiliser le générateur
 
@@ -77,9 +105,15 @@ variété du circuit, pas le lissage.
 ## Ce qui reste à faire
 
 - [x] Le **compte à rebours** : 3 lignes rouges puis tout vert ✅
-- [ ] Le **chronomètre** (`Circuit/LigneDepart` existe déjà et l'attend)
-- [ ] Les **checkpoints** anti-triche
-- [ ] Le temps affiché à l'écran
+- [x] Le **son du départ** : 3 bips, puis un long biiiip ✅
+- [x] Le `3 2 1 GO` **à l'écran** ✅
+- [x] Les **cages** : impossible de partir avant le vert ✅
+- [x] Le **compteur de tours**, la course s'arrête à 3 ✅
+- [x] Les voitures **posées sur la grille**, détruites si elles tombent ✅
+- [ ] Le **chronomètre** (le point de branchement est prêt : `print("DEPART !")`)
+- [ ] Les **checkpoints** anti-triche (on peut encore couper le circuit)
+- [ ] Le temps affiché à l'écran, sous le compteur de tours
 - [ ] Le classement et le podium
+- [ ] Un bouton « abandonner » (sinon une course jamais finie bloque tout)
 - [ ] Les écuries : choisir sa voiture au garage
 - [ ] Les gradins et l'ambiance

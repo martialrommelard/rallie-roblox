@@ -7,102 +7,122 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-09-21
+### État au 2026-09-23
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
 **La zone de départ : TERMINÉE ✅ — ligne, portique, grille**
+**Étape 3 (le départ complet et la course en 3 tours) : TERMINÉE ✅**
 
 Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
-`Projet de circuit`, placeId 99826427812339) et il est jouable.
+`Projet de circuit`, placeId 99826427812339) et **une course entière se joue
+du début à la fin**.
 
 | | |
 |---|---|
 | Tour | 3083 studs (~44 s) |
 | Sommet | 59 studs de dénivelé |
 | Virage le plus serré | 43 studs de rayon (le lacet) |
-| Épingle | élargie à 55–66 studs (elle faisait 42–46) |
+| Épingle | élargie à 55–66 studs |
 | Tremplin | trou de 30 studs, il faut 47 studs/s |
 | Fosse à piques | 21 piques + zone de mort, 57 studs de chute |
-| **Objets dans `Circuit`** | **2281** |
+| Point le plus bas du décor | Y = −27,8 (le talus) |
+| **Objets dans `Circuit`** | **~2280** |
 
-Un tour : ligne droite → épingle → montée → lacet → tunnel → descente →
-tremplin (+ fosse à piques) → dernier virage.
+### Le déroulement d'une course (ajouté le 2026-09-23)
 
-### La zone de départ (ajoutée le 2026-09-21)
+```
+un joueur s'assoit
+   ├─ cages fermées autour de chaque voiture
+   ├─ 5 s d'attente
+   ├─ bip + rouge 1  →  "3" à l'écran
+   ├─ bip + rouge 2  →  "2"
+   ├─ bip + rouge 3  →  "1"
+   └─ BIIIIP + VERT  →  "GO", cages détruites, CourseEnCours = true
+                        panneau "TOUR 1 / 3" en bas à gauche
+        ↓
+   3 tours comptés au passage de LigneDepart
+        ↓
+   "COURSE TERMINÉE"  →  CourseEnCours = false
+        ↓
+   5 s plus tard : les 6 voitures sont reposées sur la grille
+```
 
-Tout est posé sur le 8e morceau de route (`segments[8]`), jamais à une
-position écrite en dur.
+### Les scripts du jeu
 
-| Objet | Ce que c'est | À quoi ça sert |
+| Où | Script | Rôle |
 |---|---|---|
-| `Circuit/LigneDepart` | Part invisible 60 × 10 × 15 | **c'est elle que le chrono lira** |
-| `Circuit/Damier` | 36 cases de 5 × 5 enterrées dans le bitume | ce qu'on voit |
-| `Circuit/FeuxDepart` | portique à 58 studs, `Feu1` à `Feu4` | le compte à rebours ✅ |
-| `Circuit/Grille` | 6 emplacements en quinconce, 18 traits | la grille de départ |
+| `ServerScriptService` | `FeuxDepart` | bips, feux, cages, `3 2 1 GO` |
+| `ServerScriptService` | `CompteurTours` | compte les tours, arrête la course à 3 |
+| `ServerScriptService` | `Voitures` | pose la grille, gère les chutes, remet les voitures |
+| `StarterGui/EcranDepart` | `Affichage` | **LocalScript** : l'écran du joueur |
+| `Workspace/Baseplate` | `Piques` | la fosse (à déplacer dans `ServerScriptService`) |
 
-Les 12 ampoules (4 colonnes × 3) sont pilotées par `ServerScriptService.FeuxDepart`.
-Elles sont nommées `Ampoule1/2/3` par **ligne**. Chacune a son
-`PointLight` avec `Enabled = false`. Allumer un feu = `Enabled = true`
-et changer la couleur.
+Les trois scripts serveur se parlent par **un seul attribut** :
+`workspace:GetAttribute("CourseEnCours")`. `FeuxDepart` le met à `true` au
+vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
+**passage** de vrai à faux (pas sa valeur — voir le journal du 23).
+
+### Les objets ajoutés le 2026-09-23
+
+| Objet | Ce que c'est |
+|---|---|
+| `Circuit/FeuxDepart/Poutre/Bip` | le son des 3 bips |
+| `Circuit/FeuxDepart/Poutre/BipLong` | le bip du départ, + 2 `PitchShiftSoundEffect` |
+| `Circuit/CagesDepart` | dossier vide : les cages sont construites à la demande |
+| `Workspace/Voitures` | les 6 voitures, posées sur les 6 `PlaceN` |
+| `ServerStorage/VoitureModele` | la copie de référence, clonée à chaque reset |
+| `ReplicatedStorage/CompteARebours` | RemoteEvent : le `3 2 1 GO` |
+| `ReplicatedStorage/MajTours` | RemoteEvent : le panneau des tours |
+| `StarterGui/EcranDepart` | ScreenGui : `Chiffre` (centre) + `Panneau` (bas gauche) |
 
 ### ⚠️ La première chose à faire en reprenant
 
-1. **Ouvrir Roblox Studio** et vérifier que le circuit est bien là
+1. **Ouvrir Roblox Studio** et vérifier que le circuit est là
    (`Workspace > Circuit` dans l'Explorer).
-2. **S'il a disparu** : ouvrir `scripts/GenerateurCircuit.lua`, tout copier, et
-   coller dans **View → Command Bar** de Studio. Le circuit se reconstruit en
-   quelques secondes, à l'identique.
-3. **Penser à sauvegarder la place** (`Ctrl+S` dans Studio) — le générateur est
-   sauvegardé sur GitHub, mais la place Roblox, non.
+2. **S'il a disparu** : ouvrir `scripts/GenerateurCircuit.lua`, tout copier,
+   coller dans **View → Command Bar**. ⚠️ Le générateur ne contient PAS les
+   sons, ni les cages, ni les voitures : il faudrait les refaire à la main.
+3. **Penser à `Ctrl+S`** — la place Roblox ne se sauvegarde pas toute seule.
 
 ### État de vérification du générateur (1009 lignes)
 
 | Partie | Vérifiée comment |
 |---|---|
 | Circuit, tremplin, montagne, podium | exécutée, le résultat est dans la place |
-| Ligne, damier, portique, grille | **les 3 blocs ont été exécutés mot pour mot** le 2026-09-21 |
+| Ligne, damier, portique, grille | les 3 blocs exécutés mot pour mot le 2026-09-21 |
 | Le fichier entier d'un seul tenant | ❌ **jamais relancé en une seule fois** |
-
-Blocs équilibrés : 109 ouvrants (`function`/`if`/`for`/`while`) pour 109 `end`.
-C'est un contrôle de structure, pas une preuve que tout le fichier tourne.
 
 ### Ce qui n'est PAS encore fait
 
-- ❌ Pas de chrono, pas de checkpoints
-- ❌ Le compte à rebours des feux (ils existent mais restent éteints)
-- ⚠️ **Deux voitures traînent dans le Workspace** : une Bugatti La Voiture
-  Noire et une Koenigsegg Jesko (dans `Workspace.Model`). À ranger dans un
-  dossier `Voitures` — ça servira pour les écuries (étape 6).
-- ⚠️ **Mon script est dans `Workspace > Baseplate > Piques`**, pas dans
-  `ServerScriptService`. Il marche très bien là, mais si je supprime le sol je
-  perds le script : le glisser dans `ServerScriptService` serait plus sûr.
-- ⚠️ Les sons du moteur ne se chargent pas : les assets du modèle Toolbox ne
-  m'appartiennent pas (`not authorized to access Asset`). La voiture est muette.
+- ❌ **Pas de chronomètre** : on compte les tours, mais pas le temps.
+  Le point de branchement est prêt : `print("DEPART !")` dans `FeuxDepart`.
+- ❌ **Pas de checkpoints** : rien n'empêche de couper le circuit. Seule la
+  largeur de la ligne (±40 studs) est vérifiée au passage.
+- ❌ Pas de records, pas de podium à la fin.
+- ⚠️ **Pas de bouton « abandonner »** : si un joueur descend de voiture au
+  milieu d'un tour sans jamais finir, `CourseEnCours` reste à `true` et plus
+  aucun départ ne peut se lancer. Il faudrait un temps limite ou un bouton.
+- ⚠️ **Le son du moteur ne marche pas** : les assets du modèle Toolbox ne
+  m'appartiennent pas (`Asset is not approved for the requester`).
+- ⚠️ **Erreur dans la voiture** : `A-Chassis Tune.Initialize` ligne 286,
+  « value of type nil cannot be converted to a number », répétée en boucle.
+  Ça noie l'Output. Pas encore cherché.
+- ⚠️ **Le script `Piques` est dans `Workspace > Baseplate`** : si je supprime
+  le sol, je perds le script.
 
 ### La prochaine étape : LE CHRONOMÈTRE
 
-Le compte à rebours est **fait** (`scripts/FeuxDepart.lua`). Le chrono s'y
-branche : il démarre exactement là où le script affiche `print("DEPART !")`.
+Tout est prêt pour l'accrocher :
 
-1. ✅ FAIT — les feux : 3 lignes rouges puis tout vert
-2. Au passage au vert, noter l'heure avec `os.clock()`
-3. Détecter quand un joueur franchit `Circuit/LigneDepart`
-4. Des checkpoints le long du circuit pour empêcher de couper
+1. Noter l'heure avec `os.clock()` au moment du `print("DEPART !")`
+2. À chaque passage compté par `CompteurTours`, calculer le temps du tour
+3. L'afficher dans le `Panneau` (il y a la place sous « TOUR n / 3 »)
+4. Garder le meilleur temps → les records, puis le podium
 
-⚠️ Pour la détection, **ne pas repartir sur `Touched`** : je m'y suis cassé les
-dents avec les piques, et de toute façon `LigneDepart` est en
-`CanCollide = false`. Réutiliser la méthode du script `Piques` (regarder la
-position à chaque image avec `Heartbeat`), qui elle est fiable.
-
-💡 **L'idée qui simplifie tout** : le chrono ne suit pas la voiture, il suit
-**le joueur**. Comme on est assis dans le siège, le personnage se déplace avec
-la voiture. Ça marche donc avec la Bugatti, la Koenigsegg, ou même à pied.
-
-⚠️ `FeuxDepart.lua` ne part plus tout seul : il attend que quelqu'un **s'asseye
-dans une voiture**, puis 5 secondes (constante `ATTENTE`), puis les feux.
-C'est la propriété `Occupant` du `VehicleSeat` qu'il surveille.
-
+⚠️ Ne PAS repartir sur `Touched` : `LigneDepart` est en `CanCollide = false`.
+La méthode qui marche est déjà écrite dans `CompteurTours` — le changement de
+signe de `PointToObjectSpace`.
 ---
 
 ## Notions de code déjà vues
@@ -127,6 +147,20 @@ C'est la propriété `Occupant` du `VehicleSeat` qu'il surveille.
 | Nommer pour pouvoir chercher (`Ampoule1..3`) | 2026-09-21 | `FindFirstChild("Ampoule" .. n)` |
 
 ✅ **J'ai écrit mon premier script le 2026-09-16** : la fosse à piques.
+
+| **Le son** : `PlaybackSpeed`, `Volume`, `Looped` | 2026-09-23 | Les bips du départ |
+| **`PitchShiftSoundEffect`** : la hauteur sans la durée | 2026-09-23 | Le BIIIIP du départ |
+| **`TweenService`** : faire varier une valeur en douceur | 2026-09-23 | Le fondu du bip, le `3 2 1 GO` |
+| **`GetBoundingBox()`** : la boîte d'un modèle *et* son sens | 2026-09-23 | Les cages, poser les voitures |
+| **`CFrame.lookAt`** et `cf * CFrame.new(…)` | 2026-09-23 | Cages, placement en grille |
+| **Serveur ≠ client** : `Script` / `LocalScript` | 2026-09-23 | L'affichage à l'écran |
+| **`RemoteEvent`** : `FireAllClients` / `OnClientEvent` | 2026-09-23 | `3 2 1 GO`, panneau des tours |
+| **Les interfaces** : `ScreenGui`, `TextLabel`, `Frame`, `UICorner` | 2026-09-23 | L'écran de départ |
+| **Les attributs** : `SetAttribute` / `GetAttributeChangedSignal` | 2026-09-23 | `CourseEnCours` |
+| **`PointToObjectSpace`** : de quel côté d'un objet je suis | 2026-09-23 | Compter les tours |
+| **Les tables associatives** (`passages[joueur]`) | 2026-09-23 | Retenir l'état de chaque joueur |
+| **`SeatPart`, `Health`, `Players`** | 2026-09-23 | Les chutes hors du circuit |
+| **`Clone()` et `PivotTo()`** | 2026-09-23 | Remettre les voitures en grille |
 
 ---
 
@@ -218,6 +252,47 @@ c'est l'éboulis qu'il faudra alléger en premier.
 | Grille posée en prolongeant la ligne droite | partirait dans l'herbe si la piste tournait | **remonter la piste segment par segment** en comptant les studs |
 | `NB_RANGS` déclaré deux fois | Lua l'accepte en silence | renommer, sinon on lit une valeur en croyant en lire une autre |
 | « la voiture est ancrée, elle ne roulera pas » | fausse alerte de ma part | **A-Chassis désancre tout seul** au lancement |
+
+---
+
+### 2026-09-23 — le départ sonore, les cages, et la course en 3 tours
+
+Grosse séance. Le départ est passé de « trois lampes qui changent de couleur »
+à un vrai départ de course.
+
+**Le son.** Un seul fichier, `rbxasset://sounds/electronicpingshort.wav`
+(0,72 s), sert pour tout. Les sons intégrés à Roblox marchent toujours,
+contrairement aux assets du Toolbox qui, eux, sont bloqués.
+
+**Les cages.** Chaque voiture est enfermée dans 4 murs tant que le feu n'est
+pas vert. Ils sont invisibles (`TRANSP = 1`) mais solides — `Transparency` et
+`CanCollide` sont deux propriétés indépendantes.
+
+**L'écran.** Premier `LocalScript` du projet, et premier `RemoteEvent`.
+Le serveur ne peut pas écrire sur l'écran d'un joueur : il envoie un message,
+et un script qui tourne chez le joueur l'affiche.
+
+**Les tours.** Comptés par le changement de signe de `PointToObjectSpace` —
+la même méthode que les piques, jamais `Touched`.
+
+**Les voitures.** Rangées dans `Workspace/Voitures`, posées sur les 6
+emplacements en demandant sa position et sa direction au trait `Avant` de
+chaque `PlaceN`. Elles réapparaissent 5 s après la fin de la course.
+
+**Ce que j'ai appris en me plantant** :
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Vouloir un bip aigu **et** long | impossible avec `PlaybackSpeed` seul | il change la vitesse ET la hauteur ensemble ; pour les séparer il faut `PitchShiftSoundEffect` |
+| Boucler un bip court pour le faire durer | on entendait *bip-bip-bip*, pas *biiiip* | une boucle s'entend toujours ; il faut un son qui dure vraiment |
+| Ralentir un son pour le rendre grave | il devenait **mou**, on ne l'entendait plus | ralentir étale l'énergie : même coup, 3× plus long = 3× moins fort |
+| Empiler 3 `PitchShiftSoundEffect` | son métallique, artificiel | chaque effet ajoute des artefacts **et** de la latence : en mettre le moins possible |
+| Le bip en retard sur la lumière | une lumière est instantanée, un son non | lancer le son **en avance**, et prendre cette avance **sur** l'attente suivante, sinon tout le rythme ralentit |
+| Mesurer le son en mode Edit | `TimePosition` restait à 0 | le moteur audio ne tourne pas pareil hors du jeu : mesurer en Play |
+| Cage calée sur le marquage au sol | la voiture faisait 18 studs pour une case de 9 | demander ses mesures à la **voiture** (`GetBoundingBox`), pas au décor |
+| `if attribut == false then` | les voitures étaient rasées 5 s après le lancement | un attribut faux ne dit pas si la course vient de finir ou n'a **jamais** commencé : il faut détecter le **passage** de vrai à faux |
+| Ranger les voitures dans un dossier | plus aucune cage, **sans aucune erreur** | le code cherchait « les modèles à la racine du Workspace » ; déplacer des objets oblige à relire tout ce qui les cherchait |
+| Un 2ᵉ joueur s'assoit pendant la course | le compte à rebours repartait et une cage apparaissait en pleine piste | `enCours` protège le compte à rebours, `CourseEnCours` protège toute la course — il faut les deux |
 
 ---
 
