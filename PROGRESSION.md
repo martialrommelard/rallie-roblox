@@ -257,6 +257,9 @@ c'est l'éboulis qu'il faudra alléger en premier.
 
 ### 2026-09-23 — le départ sonore, les cages, et la course en 3 tours
 
+> Le déroulé complet de la séance, avec mes demandes dans l.ordre et les
+> allers-retours, est dans [`lecons/05-discussion-2026-09-23.md`](lecons/05-discussion-2026-09-23.md).
+
 Grosse séance. Le départ est passé de « trois lampes qui changent de couleur »
 à un vrai départ de course.
 

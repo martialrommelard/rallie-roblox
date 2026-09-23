@@ -73,7 +73,7 @@ en pleine course, et déclenche le retour des voitures quand il retombe à faux.
 | [`scripts/CompteurTours.lua`](scripts/CompteurTours.lua) | Compte les tours, arrête la course à 3 |
 | [`scripts/Voitures.lua`](scripts/Voitures.lua) | Pose la grille, gère les chutes, remet les voitures |
 | [`scripts/EcranDepart.client.lua`](scripts/EcranDepart.client.lua) | **LocalScript** : l'affichage chez le joueur |
-| `lecons/` | Une fiche par étape |
+| `lecons/` | Une fiche par étape, + le déroulé complet des séances |
 
 ⚠️ Le générateur ne fabrique que le **décor**. Les sons, les cages, les
 voitures et les interfaces vivent dans la place Roblox : ils ne se
