@@ -724,6 +724,289 @@ if AILES then
 		AILE_LONG, AILE_PROF, AILE_H, xCoin, PORTE_L, PORTE_H))
 end
 
+-- ---- LES BUREAUX DE LA DIRECTION DE COURSE (batiment de droite, 2026-10-03) ----
+-- Le batiment de DROITE (pour un joueur dans le spawn qui regarde la piste)
+-- devient les bureaux de ceux qui s occupent de la course :
+--   - au FOND (le mur en face de la porte), un grand tableau blanc avec le
+--     CROQUIS DU CIRCUIT. Il n est pas dessine a la main : chaque morceau de
+--     route est reporte en petit sur le tableau, comme la minimap ;
+--   - devant le tableau, des rangees de postes (bureau, deux ecrans, une
+--     chaise sur laquelle on peut s asseoir), tournes vers le tableau ;
+--   - plus pres de la porte, une table de reunion ;
+--   - des plantes dans les coins, et une enseigne au-dessus de la porte.
+--      ┌───────────────── tableau ─────────────────┐  <- le fond
+--      │   ▭▭  ▭▭  ▭▭  ▭▭     <- postes (rangee 1)  │
+--      │   ▭▭  ▭▭  ▭▭  ▭▭     <- rangee 2           │
+--      │   ▭▭  ▭▭  ▭▭  ▭▭     <- rangee 3           │
+--      │        ╔══════╗      <- table de reunion   │
+--      └──────────── porte (cote spawn) ────────────┘
+local BUREAUX      = true
+local CROQUIS_L    = 30      -- largeur du tableau du fond
+local CROQUIS_H    = 15      -- sa hauteur
+local CROQUIS_BAS  = 2.5     -- hauteur du bas du tableau au-dessus du sol
+local RANG_1       = 18      -- la 1re rangee de postes, a 18 studs du tableau
+local ECART_RANGS  = 10
+local NB_RANGS_B   = 3
+local NB_POSTES    = 4       -- postes par rangee
+local ECART_POSTES = 11
+local TABLE_REU    = 70      -- la table de reunion, a 70 studs du tableau
+local BLANC_MEUBLE = Color3.fromRGB(235, 237, 242)
+local GRIS_FONCE   = Color3.fromRGB(28, 31, 38)
+local FEUTRE       = Color3.fromRGB(25, 30, 45)      -- le trait du croquis (un feutre noir)
+local ROUGE_FEUTRE = Color3.fromRGB(215, 40, 45)
+if BUREAUX and AILES then
+	-- la droite, pour un joueur dans le spawn qui regarde la piste
+	local versPiste = -cote
+	local s = (sens:Dot(versPiste:Cross(haut)) > 0) and 1 or -1
+	local aIn = milieu + s * xCoin                       -- le mur de la porte (dehors)
+	local i1  = aIn + s * AILE_MUR                       -- le mur de la porte (dedans)
+	local i2  = milieu + s * (xCoin + AILE_LONG - AILE_MUR) -- le mur du fond (dedans)
+	local j1, j2 = devantAile + AILE_MUR, avant - AILE_MUR
+	local jM = (j1 + j2) / 2
+	local yS = hautY + DECO_SOL                          -- le sol de la salle
+	local versSalle = -s * sens                          -- du fond vers la porte
+	local regard = s * sens                              -- de la porte vers le fond
+	-- "a d studs du fond", le long de la piste
+	local function duFond(d) return i2 - s * d end
+	local function pt(a, l, y) return origine + sens * a + cote * l + haut * y end
+	local function piece(nom, taille, cf, couleur, matiere)
+		local p = Instance.new("Part")
+		p.Name = nom
+		p.Anchored = true
+		p.Size = taille
+		p.CFrame = cf
+		p.Color = couleur
+		p.Material = matiere or Enum.Material.SmoothPlastic
+		p.Parent = zone
+		return p
+	end
+	-- un texte sur une piece invisible, tourne vers "versOu"
+	local function etiquette(nom, texte, pos, versOu, l, h, couleur, lumineux)
+		local p = piece(nom, Vector3.new(l, h, 0.05), CFrame.lookAt(pos, pos + versOu), couleur)
+		p.Transparency = 1
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CastShadow = false
+		local g = Instance.new("SurfaceGui")
+		g.Face = Enum.NormalId.Front
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = 40
+		g.LightInfluence = lumineux and 0 or 1
+		g.Parent = p
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.TextColor3 = couleur
+		t.Text = texte
+		t.Parent = g
+		return p
+	end
+
+	-- 1. LE TABLEAU ET LE CROQUIS ----------------------------------
+	local yT = yS + CROQUIS_BAS
+	pave("CadreTableau", duFond(0), duFond(0.5), jM - CROQUIS_L / 2 - 0.4, jM + CROQUIS_L / 2 + 0.4,
+		yT - 0.4, yT + CROQUIS_H + 0.4, Enum.Material.Neon, NEON)
+	pave("TableauCroquis", duFond(0), duFond(0.6), jM - CROQUIS_L / 2, jM + CROQUIS_L / 2,
+		yT, yT + CROQUIS_H, Enum.Material.SmoothPlastic, Color3.fromRGB(250, 250, 252))
+	-- le rebord, avec trois feutres
+	pave("RebordTableau", duFond(0.6), duFond(1.4), jM - CROQUIS_L / 2, jM + CROQUIS_L / 2,
+		yT - 0.5, yT - 0.3, Enum.Material.SmoothPlastic, Color3.fromRGB(190, 195, 205))
+	for k, c in ipairs({FEUTRE, ROUGE_FEUTRE, Color3.fromRGB(30, 90, 210)}) do
+		local l = jM + CROQUIS_L / 2 - 2 - k * 1.2
+		pave("Feutre", duFond(0.9), duFond(1.1), l - 0.5, l + 0.5, yT - 0.3, yT - 0.1, Enum.Material.SmoothPlastic, c)
+	end
+
+	-- Le dessin : le circuit vu d en haut. Un point du monde -> (h, v) sur le
+	-- tableau (h vers la droite, v vers le haut). Au depart, "le fond" est en
+	-- haut du tableau ; mais si le circuit est plus long que large, on le
+	-- tourne d un quart de tour : il remplit mieux le tableau.
+	local droite = regard:Cross(haut)                     -- la droite du tableau, dans le monde
+	local axeH, axeV = droite, regard
+	local surface = pt(duFond(0.6), jM, 0)                -- le milieu du tableau, a Y = 0
+	local morceaux = {}
+	local route = workspace:FindFirstChild("Circuit") and workspace.Circuit:FindFirstChild("Route")
+	if route then
+		for _, p in ipairs(route:GetChildren()) do
+			if p:IsA("BasePart") then
+				local dir = p.CFrame.LookVector * Vector3.new(1, 0, 1)
+				table.insert(morceaux, {p.Position - dir * p.Size.Z / 2, p.Position + dir * p.Size.Z / 2, p.Size.X})
+			end
+		end
+	end
+	-- de combien le circuit s etend le long d un axe
+	local function etendue(axe)
+		local mini, maxi = math.huge, -math.huge
+		for _, m in ipairs(morceaux) do
+			for i = 1, 2 do
+				mini, maxi = math.min(mini, m[i]:Dot(axe)), math.max(maxi, m[i]:Dot(axe))
+			end
+		end
+		return mini, maxi
+	end
+	local hMin, hMax = etendue(axeH)
+	local vMin, vMax = etendue(axeV)
+	if vMax - vMin > hMax - hMin then
+		axeH, axeV = regard, -droite                      -- le quart de tour
+		hMin, hMax = etendue(axeH)
+		vMin, vMax = etendue(axeV)
+	end
+	-- l echelle : le circuit tient dans le tableau (moins une marge, et le titre en haut)
+	local k = math.min((CROQUIS_L - 4) / (hMax - hMin), (CROQUIS_H - 3.5) / (vMax - vMin))
+	local hC, vC = (hMin + hMax) / 2, (vMin + vMax) / 2
+	local yDessin = yT + (CROQUIS_H - 1.8) / 2              -- le milieu du dessin (sous le titre)
+	-- un point du circuit -> le point du croquis, sur la surface du tableau
+	local function point(P)
+		return surface + droite * ((P:Dot(axeH) - hC) * k) + haut * (yDessin + (P:Dot(axeV) - vC) * k)
+			+ versSalle * 0.03
+	end
+	local function trait(nom, A, B, epais, couleur)
+		local m = (A + B) / 2
+		local p = piece(nom, Vector3.new(epais, 0.04, (B - A).Magnitude + epais), CFrame.lookAt(m, B, versSalle), couleur)
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CastShadow = false
+		return p
+	end
+	for _, m in ipairs(morceaux) do
+		trait("TraitCroquis", point(m[1]), point(m[2]), math.clamp(m[3] * k * 0.5, 0.3, 0.6), FEUTRE)
+	end
+	-- la ligne de depart en rouge, et quelques reperes
+	local ld = workspace.Circuit:FindFirstChild("LigneDepart")
+	if ld then
+		local travers = ld.CFrame.RightVector * Vector3.new(1, 0, 1)
+		local A, B = ld.Position - travers * ld.Size.X * 0.8, ld.Position + travers * ld.Size.X * 0.8
+		trait("TraitDepart", point(A), point(B), 0.35, ROUGE_FEUTRE)
+		etiquette("TexteCroquis", "DÉPART", point(ld.Position) + haut * 1.1 + versSalle * 0.02, versSalle, 5, 0.9,
+			ROUGE_FEUTRE)
+	end
+	local tremplin = workspace.Circuit:FindFirstChild("Tremplin")
+	if tremplin then
+		etiquette("TexteCroquis", "TREMPLIN", point(tremplin.Position) + haut * 1.1 + versSalle * 0.02, versSalle,
+			6, 0.9, Color3.fromRGB(30, 90, 210))
+	end
+	local tunnel = workspace.Circuit:FindFirstChild("Tunnel")
+	if tunnel then
+		local somme, n = Vector3.zero, 0
+		for _, p in ipairs(tunnel:GetDescendants()) do
+			if p:IsA("BasePart") then somme += p.Position; n += 1 end
+		end
+		if n > 0 then
+			etiquette("TexteCroquis", "TUNNEL", point(somme / n) + haut * 1.1 + versSalle * 0.02, versSalle,
+				5, 0.9, Color3.fromRGB(30, 90, 210))
+		end
+	end
+	etiquette("TexteCroquis", "CROQUIS DU CIRCUIT", pt(duFond(0.63), jM, yT + CROQUIS_H - 1), versSalle,
+		CROQUIS_L * 0.6, 1.4, FEUTRE)
+
+	-- 2. LES POSTES : bureau, deux ecrans, une chaise -------------
+	local TEXTES_ECRAN = {"CHRONO", "CAMÉRA 1", "CAMÉRA 2", "TOURS", "MÉTÉO : SOLEIL", "PISTE OK", "RADIO",
+		"CLASSEMENT", "TREMPLIN", "TUNNEL", "VOITURES : 6", "DRAPEAU VERT"}
+	local numEcran = 0
+	local function chaise(pos, versOu)
+		local cf = CFrame.lookAt(pos, pos + versOu)
+		local assise = Instance.new("Seat")
+		assise.Name = "ChaiseBureau"
+		assise.Anchored = true
+		assise.Size = Vector3.new(2.2, 0.5, 2.2)
+		assise.CFrame = cf * CFrame.new(0, 1.9, 0)
+		assise.Material = Enum.Material.SmoothPlastic
+		assise.Color = GRIS_FONCE
+		assise.Parent = zone
+		piece("DossierChaise", Vector3.new(2.2, 2.4, 0.3), cf * CFrame.new(0, 3.3, 1.0), GRIS_FONCE)
+		piece("LisereChaise", Vector3.new(2.2, 0.15, 0.32), cf * CFrame.new(0, 4.5, 1.0), NEON, Enum.Material.Neon)
+		piece("PiedChaise", Vector3.new(0.4, 1.6, 0.4), cf * CFrame.new(0, 0.85, 0), Color3.fromRGB(90, 90, 95))
+		piece("BaseChaise", Vector3.new(1.8, 0.2, 1.8), cf * CFrame.new(0, 0.1, 0), Color3.fromRGB(90, 90, 95))
+	end
+	for r = 1, NB_RANGS_B do
+		local d = RANG_1 + (r - 1) * ECART_RANGS              -- distance du bureau au tableau
+		for p = 1, NB_POSTES do
+			local jc = jM + (p - (NB_POSTES + 1) / 2) * ECART_POSTES
+			-- le bureau : un plateau blanc, deux joues grises, un lisere neon
+			pave("Bureau", duFond(d - 1.5), duFond(d + 1.5), jc - 3.5, jc + 3.5, yS + 2.8, yS + 3.1,
+				Enum.Material.SmoothPlastic, BLANC_MEUBLE)
+			for _, cj in ipairs({-1, 1}) do
+				pave("JoueBureau", duFond(d - 1.4), duFond(d + 1.4), jc + cj * 3.3, jc + cj * 3.1, yS, yS + 2.8,
+					Enum.Material.SmoothPlastic, GRIS_FONCE)
+			end
+			pave("LisereBureau", duFond(d + 1.5), duFond(d + 1.55), jc - 3.5, jc + 3.5, yS + 2.8, yS + 3.1,
+				Enum.Material.Neon, NEON)
+			-- deux ecrans, cote tableau, tournes vers la chaise
+			for _, cj in ipairs({-1.6, 1.6}) do
+				local pe = pt(duFond(d - 0.8), jc + cj, yS + 4.3)
+				local ecran = piece("Ecran", Vector3.new(2.8, 1.7, 0.15), CFrame.lookAt(pe, pe + versSalle), GRIS_FONCE)
+				piece("PiedEcran", Vector3.new(0.25, 1.1, 0.25), CFrame.new(pe - haut * 1.2 - versSalle * 0.05),
+					Color3.fromRGB(90, 90, 95))
+				numEcran += 1
+				local g = Instance.new("SurfaceGui")
+				g.Face = Enum.NormalId.Front
+				g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+				g.PixelsPerStud = 50
+				g.LightInfluence = 0
+				g.Parent = ecran
+				local fond = Instance.new("Frame")
+				fond.Size = UDim2.new(1, -8, 1, -8)
+				fond.Position = UDim2.fromOffset(4, 4)
+				fond.BackgroundColor3 = Color3.fromRGB(10, 28, 55)
+				fond.BorderSizePixel = 0
+				fond.Parent = g
+				local t = Instance.new("TextLabel")
+				t.BackgroundTransparency = 1
+				t.Size = UDim2.fromScale(0.9, 0.5)
+				t.Position = UDim2.fromScale(0.05, 0.25)
+				t.Font = Enum.Font.GothamBold
+				t.TextScaled = true
+				t.TextColor3 = NEON
+				t.Text = TEXTES_ECRAN[(numEcran - 1) % #TEXTES_ECRAN + 1]
+				t.Parent = fond
+			end
+			-- la chaise, de l autre cote, tournee vers le tableau
+			chaise(pt(duFond(d + 3), jc, yS), regard)
+		end
+	end
+
+	-- 3. LA TABLE DE REUNION --------------------------------------
+	local LONG_TABLE = 16
+	pave("TableReunion", duFond(TABLE_REU - LONG_TABLE / 2), duFond(TABLE_REU + LONG_TABLE / 2), jM - 3, jM + 3,
+		yS + 2.8, yS + 3.1, Enum.Material.SmoothPlastic, BLANC_MEUBLE)
+	pave("LisereTable", duFond(TABLE_REU - LONG_TABLE / 2), duFond(TABLE_REU + LONG_TABLE / 2), jM - 3.05, jM + 3.05,
+		yS + 2.7, yS + 2.8, Enum.Material.Neon, NEON)
+	for _, dp in ipairs({-LONG_TABLE / 2 + 1.5, LONG_TABLE / 2 - 1.5}) do
+		pave("PiedTable", duFond(TABLE_REU + dp - 0.4), duFond(TABLE_REU + dp + 0.4), jM - 2.5, jM + 2.5, yS, yS + 2.7,
+			Enum.Material.SmoothPlastic, GRIS_FONCE)
+	end
+	for _, dp in ipairs({-5, 0, 5}) do
+		for _, cj in ipairs({-1, 1}) do
+			chaise(pt(duFond(TABLE_REU + dp), jM + cj * 4.5, yS), -cj * cote)
+		end
+	end
+
+	-- 4. LES PLANTES DANS LES COINS -------------------------------
+	for _, coin in ipairs({{3, j1 + 3}, {3, j2 - 3}, {AILE_LONG - 2 * AILE_MUR - 3, j2 - 3}}) do
+		local sol = pt(duFond(coin[1]), coin[2], yS)
+		piece("PotBureau", Vector3.new(2.6, 3, 3), CFrame.new(sol + haut * 1.3) * CFrame.Angles(0, 0, math.rad(90)),
+			GRIS_FONCE).Shape = Enum.PartType.Cylinder
+		piece("LisereNeon", Vector3.new(0.25, 3.2, 3.2), CFrame.new(sol + haut * 2.5) * CFrame.Angles(0, 0, math.rad(90)),
+			NEON, Enum.Material.Neon).Shape = Enum.PartType.Cylinder
+		local f = piece("FeuillesBureau", Vector3.new(4.2, 4.2, 4.2), CFrame.new(sol + haut * 4.4),
+			Color3.fromRGB(70, 150, 70), Enum.Material.Grass)
+		f.Shape = Enum.PartType.Ball
+	end
+
+	-- 5. L ENSEIGNE AU-DESSUS DE LA PORTE (cote spawn) --------------
+	local pMilieu = (devantAile + dos) / 2
+	local yE = hautY + PORTE_H + 1.2
+	pave("EnseigneBureaux", aIn, aIn - s * 0.3, pMilieu - 9, pMilieu + 9, yE, yE + 2.6,
+		Enum.Material.SmoothPlastic, GRIS_FONCE)
+	pave("EnseigneNeon", aIn, aIn - s * 0.35, pMilieu - 9, pMilieu + 9, yE - 0.15, yE, Enum.Material.Neon, NEON)
+	etiquette("TexteEnseigne", "DIRECTION DE COURSE", pt(aIn - s * 0.33, pMilieu, yE + 1.3), versSalle, 17, 2.2,
+		NEON, true)
+
+	print(string.format("Bureaux : batiment %s, croquis de %d morceaux de route (echelle %.3f), %d postes",
+		s > 0 and "+sens" or "-sens", #morceaux, k, NB_RANGS_B * NB_POSTES))
+end
+
 -- ---- LE TOIT BLANC (2026-10-03) ----
 -- Il pose sur les murs et couvre tout le rond, en deux parties :
 --   - l ARRIERE, blanc plein ;
