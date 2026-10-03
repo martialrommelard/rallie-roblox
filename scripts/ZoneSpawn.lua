@@ -1177,6 +1177,114 @@ if DECO then
 	end
 end
 
+-- ---- LE JARDIN AUTOUR DU BOUTON (2026-10-03) ----
+-- Un massif en anneau autour du bouton : de la terre, des BUISSONS (des
+-- boules de plusieurs verts) et des FLEURS (une tige, une corolle, un coeur).
+-- Devant le bouton (cote spawn), seulement des fleurs basses qu on
+-- traverse : on peut toujours aller appuyer. Le massif s arrete avant le
+-- verre. "Au hasard", mais avec un hasard FIXE (Random.new(7)) : a chaque
+-- relance du generateur, le jardin est le meme.
+--        verre
+--   ✿ ● ✿ ● ✿ ● ✿      <- buissons et fleurs, derriere et sur les cotes
+--   ●    [B]    ●      <- le bouton au milieu
+--    ✿  ✿   ✿  ✿       <- devant : des fleurs seulement (on passe)
+--        spawn
+local JARDIN        = true
+local JARDIN_RMIN   = 4       -- le massif commence a 4 studs du bouton...
+local JARDIN_RMAX   = 10      -- ...et s arrete a 10
+local PASSAGE_ANGLE = 50      -- devant le bouton : 2 x 50 degres sans buisson
+local TERRE         = Color3.fromRGB(92, 66, 46)
+local VERTS         = {Color3.fromRGB(58, 125, 60), Color3.fromRGB(74, 145, 70), Color3.fromRGB(45, 105, 55)}
+local FLEURS        = {Color3.fromRGB(230, 50, 60), Color3.fromRGB(255, 205, 60), Color3.fromRGB(255, 120, 190),
+	Color3.fromRGB(150, 90, 220), Color3.fromRGB(250, 250, 250)}
+if JARDIN and DECO and BOUTON then
+	local hasard = Random.new(7)
+	local pB = PROFONDEUR - BOUTON_VERRE                 -- la profondeur du bouton
+	local function enJardin(angle, r)
+		-- angle 0 = le long de la piste ; -90 degres = vers le spawn
+		return centre + sens * (math.cos(angle) * r) + versRoute * (pB + math.sin(angle) * r)
+	end
+	-- dans le rond, et pas trop pres du verre ?
+	local function libre(p)
+		local rel = p - centre
+		local x, z = rel:Dot(sens) / DEMI_LARGEUR, rel:Dot(versRoute) / PROFONDEUR
+		return x * x + z * z < 0.93
+	end
+	-- devant le bouton (cote spawn) ?
+	local function devant(angle)
+		local ecart = math.deg(math.abs((angle + math.pi / 2 + math.pi) % (2 * math.pi) - math.pi))
+		return ecart < PASSAGE_ANGLE
+	end
+	local function boule(nom, taille, pos, couleur, matiere, collision)
+		local b = Instance.new("Part")
+		b.Name = nom
+		b.Shape = Enum.PartType.Ball
+		b.Anchored = true
+		b.CanCollide = collision
+		b.Size = Vector3.new(taille, taille, taille)
+		b.Position = pos
+		b.Color = couleur
+		b.Material = matiere
+		b.Parent = zone
+		return b
+	end
+
+	-- la terre : des morceaux d anneau, tous les 12 degres
+	for deg = 0, 348, 12 do
+		local a = math.rad(deg)
+		local m = enJardin(a, (JARDIN_RMIN + JARDIN_RMAX) / 2)
+		if libre(m) and not devant(a) then
+			local t = Instance.new("Part")
+			t.Name = "Terre"
+			t.Anchored = true
+			t.CanCollide = false
+			t.Size = Vector3.new(2.2, 0.3, JARDIN_RMAX - JARDIN_RMIN)
+			local sol = Vector3.new(m.X, hautY + 0.12, m.Z)
+			t.CFrame = CFrame.lookAt(sol, Vector3.new(enJardin(a, JARDIN_RMAX).X, sol.Y, enJardin(a, JARDIN_RMAX).Z))
+			t.Material = Enum.Material.Ground
+			t.Color = TERRE
+			t.Parent = zone
+		end
+	end
+
+	-- les buissons : 3 boules qui se chevauchent, derriere et sur les cotes
+	for deg = 0, 345, 30 do
+		local a = math.rad(deg + hasard:NextNumber(-8, 8))
+		local p = enJardin(a, hasard:NextNumber(JARDIN_RMIN + 2, JARDIN_RMAX - 1.5))
+		if libre(p) and not devant(a) then
+			for k = 1, 3 do
+				local taille = hasard:NextNumber(2.2, 3.4)
+				local decal = Vector3.new(hasard:NextNumber(-1, 1), 0, hasard:NextNumber(-1, 1))
+				boule("Buisson", taille, Vector3.new(p.X, hautY + taille * 0.42, p.Z) + decal,
+					VERTS[hasard:NextInteger(1, #VERTS)], Enum.Material.Grass, k == 1)
+			end
+		end
+	end
+
+	-- les fleurs : partout, meme devant (on les traverse)
+	for _ = 1, 46 do
+		local a = hasard:NextNumber(0, 2 * math.pi)
+		local p = enJardin(a, hasard:NextNumber(JARDIN_RMIN, JARDIN_RMAX))
+		if libre(p) then
+			local h = hasard:NextNumber(0.9, 1.6)          -- hauteur de la tige
+			local sol = Vector3.new(p.X, hautY, p.Z)
+			local tige = Instance.new("Part")
+			tige.Name = "Tige"
+			tige.Anchored = true
+			tige.CanCollide = false
+			tige.Size = Vector3.new(0.15, h, 0.15)
+			tige.Position = sol + Vector3.new(0, h / 2, 0)
+			tige.Color = VERTS[1]
+			tige.Material = Enum.Material.SmoothPlastic
+			tige.Parent = zone
+			boule("Fleur", hasard:NextNumber(0.6, 0.9), sol + Vector3.new(0, h + 0.15, 0),
+				FLEURS[hasard:NextInteger(1, #FLEURS)], Enum.Material.SmoothPlastic, false)
+			boule("CoeurFleur", 0.3, sol + Vector3.new(0, h + 0.4, 0),
+				Color3.fromRGB(255, 220, 80), Enum.Material.Neon, false)
+		end
+	end
+end
+
 -- ---- LE POINT D APPARITION ----
 -- On reprend le SpawnLocation qui existe (ou on en cree un), on le pose
 -- sur la plateforme et on le tourne vers la piste : le joueur apparait
