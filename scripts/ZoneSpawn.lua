@@ -1116,7 +1116,8 @@ if DECO then
 		return p + versCentre * recul, -versCentre      -- la position, et la direction du verre
 	end
 	for _, a in ipairs({0.62, 0.95, math.pi - 0.95, math.pi - 0.62}) do
-		local p, versVerre = surLarrondi(a, 5)
+		-- 6.5 studs du verre : devant le massif de plantes (voir plus bas)
+		local p, versVerre = surLarrondi(a, 6.5)
 		local cf = CFrame.lookAt(p + Vector3.new(0, yDeco - p.Y, 0), p + Vector3.new(0, yDeco - p.Y, 0) + versVerre)
 		-- l assise : un vrai Seat, tourne vers le verre (on regarde la piste)
 		local assise = Instance.new("Seat")
@@ -1145,35 +1146,6 @@ if DECO then
 		dossier.Material = Enum.Material.SmoothPlastic
 		dossier.Color = BLANC_BANC
 		dossier.Parent = zone
-	end
-	for _, a in ipairs({0.785, math.pi - 0.785, math.pi / 2 - 0.22, math.pi / 2 + 0.22}) do
-		local p = surLarrondi(a, 4)
-		local sol = Vector3.new(p.X, yDeco, p.Z)
-		local pot = Instance.new("Part")
-		pot.Name = "Pot"
-		pot.Shape = Enum.PartType.Cylinder
-		pot.Anchored = true
-		pot.Size = Vector3.new(2.6, 3, 3)
-		pot.CFrame = CFrame.new(sol + Vector3.new(0, 1.3, 0)) * CFrame.Angles(0, 0, math.rad(90))
-		pot.Material = Enum.Material.SmoothPlastic
-		pot.Color = Color3.fromRGB(45, 48, 56)
-		pot.Parent = zone
-		local lisere = pot:Clone()
-		lisere.Name = "LisereNeon"
-		lisere.Size = Vector3.new(0.25, 3.2, 3.2)
-		lisere.CFrame = CFrame.new(sol + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
-		lisere.Material = Enum.Material.Neon
-		lisere.Color = NEON
-		lisere.Parent = zone
-		local feuilles = Instance.new("Part")
-		feuilles.Name = "Feuilles"
-		feuilles.Shape = Enum.PartType.Ball
-		feuilles.Anchored = true
-		feuilles.Size = Vector3.new(4.2, 4.2, 4.2)
-		feuilles.Position = sol + Vector3.new(0, 4.4, 0)
-		feuilles.Material = Enum.Material.Grass
-		feuilles.Color = VERT_PLANTE
-		feuilles.Parent = zone
 	end
 end
 
@@ -1282,6 +1254,201 @@ if JARDIN and DECO and BOUTON then
 			boule("CoeurFleur", 0.3, sol + Vector3.new(0, h + 0.4, 0),
 				Color3.fromRGB(255, 220, 80), Enum.Material.Neon, false)
 		end
+	end
+end
+
+-- ---- LE MASSIF LE LONG DE LA FACADE EN VERRE (2026-10-03) ----
+-- Une bordure de plantes "nature" tout le long du verre de l arrondi,
+-- d un batiment a l autre (derriere le bouton aussi) : une bande de terre
+-- contre le verre, et dedans des buissons, de hautes herbes, des petits
+-- arbustes et des fleurs, assez hauts pour habiller le bas du verre.
+-- On avance le long de l arrondi par petits pas ; a chaque pas, le hasard
+-- (FIXE : Random.new(11)) choisit une plante.
+--   verre ║ ●●  ψψ  ♣  ●●●  ✿ ψ  ●●  ♣ ...   <- le massif
+--         ║ terre terre terre terre terre
+local MASSIF       = true
+local MASSIF_LARG  = 3.5     -- largeur de la bande de terre, contre le verre
+local MASSIF_PAS   = 2.6     -- une plante tous les ~2.6 studs le long du verre
+local PAS_ANGLE    = 0.02    -- on suit l arrondi par petits angles
+if MASSIF and MURS then
+	local hasard = Random.new(11)
+	local VERTS_M  = {Color3.fromRGB(58, 125, 60), Color3.fromRGB(74, 145, 70), Color3.fromRGB(45, 105, 55),
+		Color3.fromRGB(90, 150, 60)}
+	local FLEURS_M = {Color3.fromRGB(230, 50, 60), Color3.fromRGB(255, 205, 60), Color3.fromRGB(255, 120, 190),
+		Color3.fromRGB(150, 90, 220), Color3.fromRGB(250, 250, 250)}
+	local function piece(nom, forme, taille, cf, couleur, matiere, collision)
+		local p = Instance.new("Part")
+		p.Name = nom
+		p.Shape = forme
+		p.Anchored = true
+		p.CanCollide = collision
+		p.Size = taille
+		p.CFrame = cf
+		p.Color = couleur
+		p.Material = matiere
+		p.Parent = zone
+		return p
+	end
+	-- le point de l arrondi a l angle a, recule de "recul" studs vers le centre
+	local function contreVerre(a, recul)
+		local p = bord(a)
+		local versCentre = Vector3.new(centre.X - p.X, 0, centre.Z - p.Z).Unit
+		local q = p + versCentre * recul
+		return Vector3.new(q.X, hautY, q.Z), versCentre
+	end
+	-- l arrondi n est en verre qu entre les deux batiments : on ne plante que la
+	local function dansLeVerre(a)
+		return (bord(a) - ligne.Position):Dot(cote) <= devantAile - 1
+	end
+
+	local dernier = nil     -- le dernier point ou on a plante
+	local a = 0
+	while a <= math.pi do
+		if dansLeVerre(a) then
+			local sol, versCentre = contreVerre(a, 0.6 + MASSIF_LARG / 2)
+			-- la terre : un petit morceau a chaque pas (ils se suivent)
+			local apres = contreVerre(a + PAS_ANGLE, 0.6 + MASSIF_LARG / 2)
+			local longueur = (apres - sol).Magnitude + 0.15
+			piece("TerreMassif", Enum.PartType.Block, Vector3.new(MASSIF_LARG, 0.3, longueur),
+				CFrame.lookAt(sol + Vector3.new(0, 0.12, 0), apres + Vector3.new(0, 0.12, 0)),
+				Color3.fromRGB(92, 66, 46), Enum.Material.Ground, false)
+
+			-- une plante tous les MASSIF_PAS studs
+			if not dernier or (sol - dernier).Magnitude >= MASSIF_PAS then
+				dernier = sol
+				local p = sol + versCentre * hasard:NextNumber(-0.8, 0.8)
+				-- pres du bouton, rien de haut : il ne faut pas cacher son panneau
+				local presBouton = math.abs((p - centre):Dot(sens)) < 9
+				local tirage = hasard:NextNumber()
+				-- devant un banc : seulement des fleurs basses (rien ne deborde sur le banc)
+				for _, ab in ipairs({0.62, 0.95, math.pi - 0.95, math.pi - 0.62}) do
+					if math.abs(a - ab) < 0.06 then tirage = 0.9 end
+				end
+				-- juste derriere le bouton : des fleurs aussi (un buisson toucherait son socle)
+				if presBouton then tirage = 0.9 end
+				if tirage < 0.5 then
+					-- un BUISSON : 2 a 4 boules de verts differents
+					for k = 1, hasard:NextInteger(2, 4) do
+						local t = hasard:NextNumber(2.4, presBouton and 3.2 or 4.6)
+						local decal = Vector3.new(hasard:NextNumber(-1, 1), 0, hasard:NextNumber(-1, 1))
+						piece("Buisson", Enum.PartType.Ball, Vector3.new(t, t, t),
+							CFrame.new(p + decal + Vector3.new(0, t * 0.45, 0)),
+							VERTS_M[hasard:NextInteger(1, #VERTS_M)], Enum.Material.Grass, k == 1)
+					end
+				elseif tirage < 0.72 then
+					-- de HAUTES HERBES : des brins fins, un peu penches
+					for k = 1, 6 do
+						local h = hasard:NextNumber(2.5, 5)
+						local penche = CFrame.Angles(hasard:NextNumber(-0.25, 0.25), 0, hasard:NextNumber(-0.25, 0.25))
+						local pied = p + Vector3.new(hasard:NextNumber(-0.7, 0.7), 0, hasard:NextNumber(-0.7, 0.7))
+						piece("Herbe", Enum.PartType.Block, Vector3.new(0.2, h, 0.2),
+							CFrame.new(pied) * penche * CFrame.new(0, h / 2, 0),
+							VERTS_M[4], Enum.Material.Grass, false)
+					end
+				elseif tirage < 0.85 and not presBouton then
+					-- un ARBUSTE : un petit tronc et une grosse boule de feuilles
+					local h = hasard:NextNumber(4, 6)
+					piece("TroncArbuste", Enum.PartType.Block, Vector3.new(0.6, h, 0.6),
+						CFrame.new(p + Vector3.new(0, h / 2, 0)), Color3.fromRGB(95, 70, 50), Enum.Material.Wood, true)
+					local f = hasard:NextNumber(4, 5.5)
+					piece("FeuillesArbuste", Enum.PartType.Ball, Vector3.new(f, f, f),
+						CFrame.new(p + Vector3.new(0, h + f * 0.3, 0)),
+						VERTS_M[hasard:NextInteger(1, 3)], Enum.Material.Grass, false)
+				else
+					-- des FLEURS : une petite touffe
+					for k = 1, 4 do
+						local h = hasard:NextNumber(1, 2)
+						local pied = p + Vector3.new(hasard:NextNumber(-0.9, 0.9), 0, hasard:NextNumber(-0.9, 0.9))
+						piece("Tige", Enum.PartType.Block, Vector3.new(0.15, h, 0.15),
+							CFrame.new(pied + Vector3.new(0, h / 2, 0)), VERTS_M[1], Enum.Material.SmoothPlastic, false)
+						local t = hasard:NextNumber(0.6, 0.9)
+						piece("Fleur", Enum.PartType.Ball, Vector3.new(t, t, t),
+							CFrame.new(pied + Vector3.new(0, h + 0.15, 0)),
+							FLEURS_M[hasard:NextInteger(1, #FLEURS_M)], Enum.Material.SmoothPlastic, false)
+					end
+				end
+			end
+		end
+		a += PAS_ANGLE
+	end
+end
+
+-- ---- LA MOUSSE QUI GRIMPE SUR LE VERRE, DERRIERE LE BOUTON (2026-10-03) ----
+-- Un "mur vegetal" colle contre le verre : des plaques de mousse de
+-- plusieurs verts, qui montent haut au milieu (derriere le bouton) et de
+-- moins en moins haut sur les cotes, avec un bord irregulier, quelques
+-- lianes qui pendent et des petites fleurs dedans. Hasard FIXE (Random.new(5)).
+--          ▓▓
+--        ▓▓▓▓▓▓
+--     ▓▓▓▓▓▓▓▓▓▓▓▓       <- la mousse, sur le verre
+--   ▓▓▓▓▓▓▓[B]▓▓▓▓▓▓▓    <- le bouton devant
+local MOUSSE        = true
+local MOUSSE_LARG   = 17      -- la mousse va de -17 a +17 studs autour du bouton
+local MOUSSE_HAUT   = 13.5    -- sa hauteur au milieu (le verre fait MUR_H = 16)
+local MOUSSE_PAS    = 1.3     -- taille de la "grille" des plaques
+if MOUSSE and MURS and BOUTON then
+	local hasard = Random.new(5)
+	local VERTS_MO = {Color3.fromRGB(52, 110, 48), Color3.fromRGB(68, 132, 56), Color3.fromRGB(40, 92, 45),
+		Color3.fromRGB(86, 140, 62), Color3.fromRGB(60, 120, 70)}
+	local FLEURS_MO = {Color3.fromRGB(255, 205, 60), Color3.fromRGB(250, 250, 250), Color3.fromRGB(255, 120, 190)}
+	-- sur le verre, a "x" studs du bouton le long de la piste, et "y" studs du sol :
+	-- la position (juste devant le verre, cote spawn) et le repere de la plaque
+	local function surLeVerre(x, y, decolle)
+		local a = math.acos(math.clamp(x / DEMI_LARGEUR, -1, 1))
+		local p = bord(a)
+		local tangente = (bord(a + 0.001) - bord(a - 0.001)).Unit
+		local n = Vector3.new(0, 1, 0):Cross(tangente)
+		if n:Dot(centre - p) < 0 then n = -n end          -- n = vers l interieur du rond
+		local pos = Vector3.new(p.X, hautY + y, p.Z) + n * (MUR_E / 2 + decolle)
+		return CFrame.lookAt(pos, pos + n)                -- la face avant regarde le spawn
+	end
+	local function plaque(nom, taille, cf, couleur, matiere)
+		local p = Instance.new("Part")
+		p.Name = nom
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Size = taille
+		p.CFrame = cf
+		p.Color = couleur
+		p.Material = matiere
+		p.Parent = zone
+		return p
+	end
+	-- la hauteur de la mousse a "x" du milieu : une bosse, plus un bord en dents
+	local function hauteurMax(x)
+		local t = math.abs(x) / MOUSSE_LARG
+		return MOUSSE_HAUT * (1 - t * t) * 0.85 + MOUSSE_HAUT * 0.15 * math.cos(t * math.pi / 2)
+	end
+	local x = -MOUSSE_LARG
+	while x <= MOUSSE_LARG do
+		local hMax = hauteurMax(x) + hasard:NextNumber(-1.5, 1.5)
+		local y = 0
+		while y < hMax do
+			-- une plaque de mousse : un peu decalee, un peu tournee, epaisseur variable
+			local t = hasard:NextNumber(1.6, 2.6)
+			local cf = surLeVerre(x + hasard:NextNumber(-0.4, 0.4), y + t / 2 - 0.3, hasard:NextNumber(0.1, 0.4))
+				* CFrame.Angles(0, 0, hasard:NextNumber(0, math.pi))
+			plaque("Mousse", Vector3.new(t, t * hasard:NextNumber(0.8, 1.2), hasard:NextNumber(0.25, 0.6)), cf,
+				VERTS_MO[hasard:NextInteger(1, #VERTS_MO)], Enum.Material.Grass)
+			-- de temps en temps, une petite fleur posee sur la mousse
+			if hasard:NextNumber() < 0.08 then
+				local f = hasard:NextNumber(0.5, 0.8)
+				local fp = surLeVerre(x, y + 0.5, 0.75)
+				local b = plaque("FleurMousse", Vector3.new(f, f, f), fp,
+					FLEURS_MO[hasard:NextInteger(1, #FLEURS_MO)], Enum.Material.SmoothPlastic)
+				b.Shape = Enum.PartType.Ball
+			end
+			y += MOUSSE_PAS
+		end
+		-- une liane qui pend du haut de la mousse, une colonne sur trois
+		if hasard:NextNumber() < 0.33 and hMax > 3 then
+			local l = hasard:NextNumber(2, 4.5)
+			plaque("Liane", Vector3.new(0.25, l, 0.25), surLeVerre(x, hMax - l / 2 + 0.6, 0.75),
+				VERTS_MO[3], Enum.Material.Grass)
+		end
+		x += MOUSSE_PAS
 	end
 end
 
