@@ -14,6 +14,15 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 **La zone de départ : TERMINÉE ✅ — ligne, portique, grille**
 **Étape 3 (le départ complet et la course en 3 tours) : TERMINÉE ✅**
 **Sorties de route : TERMINÉ ✅ — rouler hors de la route élimine (2026-10-03)**
+**Le chronomètre : TERMINÉ ✅ — en haut au milieu, du vert à l'arrivée (2026-10-03)**
+
+Aussi le 2026-10-03 : voitures recalées sur les traits de la grille, cages
+rouges qui ne grandissent plus, voitures vides qui disparaissent au vert,
+glissières en entonnoir sur le tremplin.
+
+⚠️ **Objets de la place qui ne sont PAS dans le dépôt** (refaits à la main
+dans Studio, perdus sans `Ctrl+S`) : `StarterGui/EcranDepart/BoiteChrono`
+(Frame 170 × 46 en haut au milieu, avec le TextLabel `Chrono` en RobotoMono).
 
 Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
 `Projet de circuit`, placeId 99826427812339) et **une course entière se joue
@@ -96,8 +105,6 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
 
 ### Ce qui n'est PAS encore fait
 
-- ❌ **Pas de chronomètre** : on compte les tours, mais pas le temps.
-  Le point de branchement est prêt : `print("DEPART !")` dans `FeuxDepart`.
 - ❌ **Pas de checkpoints** : rien n'empêche de couper le circuit. Seule la
   largeur de la ligne (±40 studs) est vérifiée au passage.
 - ❌ Pas de records, pas de podium à la fin.
@@ -105,9 +112,12 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
   **meurt** est éliminé et ne bloque plus la course. Mais un joueur qui
   **descend** de voiture (touche Espace) sans mourir est toujours attendu :
   `CourseEnCours` reste à `true`. Il faudrait un temps limite ou un bouton.
-- ⚠️ **Un joueur qui ne participe pas bloque la fin** : `tousOntFini()`
-  attend TOUS les joueurs du serveur, même celui resté au spawn sans voiture.
-  Pas gênant en solo, à corriger avant de jouer à plusieurs.
+- ⚠️ **Les glissières du tremplin** n'ont pas encore été essayées en roulant
+  (posées et vérifiées par le calcul le 2026-10-03).
+- ⚠️ **Élimination à l'entrée du tunnel** (2026-10-03, 2 fois, ~25 s après
+  le départ) : la route y est propre (62 000 rayons, jonctions, murs). Pas
+  reproduit ensuite. Si ça revient : rebrancher un « mouchard » qui imprime
+  ce qu'il y a sous le siège à chaque image.
 - ⚠️ **Le son du moteur ne marche pas** : les assets du modèle Toolbox ne
   m'appartiennent pas (`Asset is not approved for the requester`).
 - ⚠️ **Erreur dans la voiture** : `A-Chassis Tune.Initialize` ligne 286,
@@ -116,18 +126,14 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
 - ⚠️ **Le script `Piques` est dans `Workspace > Baseplate`** : si je supprime
   le sol, je perds le script.
 
-### La prochaine étape : LE CHRONOMÈTRE
+### La prochaine étape : LES RECORDS
 
-Tout est prêt pour l'accrocher :
+Le chrono est prêt : `CompteurTours` calcule le temps final officiel
+(`tempsDeCourse()`) au moment où le joueur finit ses 3 tours.
 
-1. Noter l'heure avec `os.clock()` au moment du `print("DEPART !")`
-2. À chaque passage compté par `CompteurTours`, calculer le temps du tour
-3. L'afficher dans le `Panneau` (il y a la place sous « TOUR n / 3 »)
-4. Garder le meilleur temps → les records, puis le podium
-
-⚠️ Ne PAS repartir sur `Touched` : `LigneDepart` est en `CanCollide = false`.
-La méthode qui marche est déjà écrite dans `CompteurTours` — le changement de
-signe de `PointToObjectSpace`.
+1. Garder le meilleur temps du serveur, et l'afficher
+2. Le sauvegarder avec `DataStoreService` pour qu'il survive à la fermeture
+3. Puis le podium à la fin de la course
 ---
 
 ## Notions de code déjà vues
@@ -336,6 +342,25 @@ revenues sur la grille. ✅
 | Juger le sol en plein saut | au-dessus de la fosse, le rayon touche les piques → éliminé en l'air | on ne juge que si le sol est à moins de 8 studs (`EN_L_AIR`) ; et le rayon traverse le dossier `Piques` |
 | Tuer dès qu'une roue touche l'herbe | éliminé au moindre écart | une **tolérance** d'1 s : il faut **rester** dehors |
 | Oublier le compteur de tours | le pilote mort était encore attendu → course jamais finie → voitures jamais revenues | quand on ajoute une façon de quitter la course, relire qui attend la fin de la course |
+
+### 2026-10-03 (suite) — le chrono, la grille, les cages, le tremplin
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| Les voitures mal placées sur la grille | le pivot de la voiture, c'est son **siège** (pilote à gauche) : la carrosserie dépassait de 1,2 stud. On centre maintenant sa **boîte** entre les traits, nez à 0,5 stud du trait Avant |
+| Voir les cages | `TRANSP = 0.6` dans `FeuxDepart` : murs rouges translucides |
+| Les cages grandissent au départ | en jeu, A-Chassis gonfle la boîte de la voiture de **18 à 32,8 studs**. On mesure la voiture de **référence** de `ServerStorage` (qui n'a jamais roulé) |
+| Le chronomètre | `FeuxDepart` note `GetServerTimeNow()` au vert dans l'attribut `HeureDepart` ; l'écran calcule « maintenant − départ » à chaque image ; le serveur donne le temps final |
+| Les voitures inutilisées | au vert, celles sans pilote disparaissent ; les 6 reviennent à la fin |
+| La voiture plantée dans la barrière après le tremplin | on pouvait décoller sur 70 studs de large, mais en bas les barrières sont à 30 studs de l'axe → glissières en entonnoir, le couloir est **demandé aux barrières d'en bas** |
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Mesurer une voiture qui roule | sa boîte passe de 18 à 32,8 studs | mesurer la copie de référence, jamais celle en piste |
+| Centrer le pivot d'un modèle | la voiture était décalée | le pivot n'est pas forcément le milieu : demander la boîte |
+| Un spectateur au feu vert | la course l'attendait pour toujours | qui court = qui est assis **au vert** ; les autres sont spectateurs |
+| Mesurer une barrière en biais par son centre | couloir trop large de 2 studs | tester les deux bouts |
+| Laisser un objet sélectionné | le tremplin a été déplacé à la souris | vider la sélection après avoir montré un objet ; Ctrl+Z existe |
 
 ---
 
