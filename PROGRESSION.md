@@ -7,12 +7,13 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-09-23
+### État au 2026-10-03
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
 **La zone de départ : TERMINÉE ✅ — ligne, portique, grille**
 **Étape 3 (le départ complet et la course en 3 tours) : TERMINÉE ✅**
+**Sorties de route : TERMINÉ ✅ — rouler hors de la route élimine (2026-10-03)**
 
 Le circuit « RALLY MONTAGNE » est construit dans Roblox Studio (place
 `Projet de circuit`, placeId 99826427812339) et **une course entière se joue
@@ -100,9 +101,13 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
 - ❌ **Pas de checkpoints** : rien n'empêche de couper le circuit. Seule la
   largeur de la ligne (±40 studs) est vérifiée au passage.
 - ❌ Pas de records, pas de podium à la fin.
-- ⚠️ **Pas de bouton « abandonner »** : si un joueur descend de voiture au
-  milieu d'un tour sans jamais finir, `CourseEnCours` reste à `true` et plus
-  aucun départ ne peut se lancer. Il faudrait un temps limite ou un bouton.
+- ⚠️ **Pas de bouton « abandonner »** : depuis le 2026-10-03, un pilote qui
+  **meurt** est éliminé et ne bloque plus la course. Mais un joueur qui
+  **descend** de voiture (touche Espace) sans mourir est toujours attendu :
+  `CourseEnCours` reste à `true`. Il faudrait un temps limite ou un bouton.
+- ⚠️ **Un joueur qui ne participe pas bloque la fin** : `tousOntFini()`
+  attend TOUS les joueurs du serveur, même celui resté au spawn sans voiture.
+  Pas gênant en solo, à corriger avant de jouer à plusieurs.
 - ⚠️ **Le son du moteur ne marche pas** : les assets du modèle Toolbox ne
   m'appartiennent pas (`Asset is not approved for the requester`).
 - ⚠️ **Erreur dans la voiture** : `A-Chassis Tune.Initialize` ligne 286,
@@ -161,6 +166,8 @@ signe de `PointToObjectSpace`.
 | **Les tables associatives** (`passages[joueur]`) | 2026-09-23 | Retenir l'état de chaque joueur |
 | **`SeatPart`, `Health`, `Players`** | 2026-09-23 | Les chutes hors du circuit |
 | **`Clone()` et `PivotTo()`** | 2026-09-23 | Remettre les voitures en grille |
+| **`RaycastParams`** : un rayon qui traverse certains objets | 2026-10-03 | Savoir sur quoi roule la voiture |
+| **`os.clock()`** : mesurer une durée | 2026-10-03 | La tolérance d'1 s hors de la route |
 
 ---
 
@@ -296,6 +303,39 @@ chaque `PlaceN`. Elles réapparaissent 5 s après la fin de la course.
 | `if attribut == false then` | les voitures étaient rasées 5 s après le lancement | un attribut faux ne dit pas si la course vient de finir ou n'a **jamais** commencé : il faut détecter le **passage** de vrai à faux |
 | Ranger les voitures dans un dossier | plus aucune cage, **sans aucune erreur** | le code cherchait « les modèles à la racine du Workspace » ; déplacer des objets oblige à relire tout ce qui les cherchait |
 | Un 2ᵉ joueur s'assoit pendant la course | le compte à rebours repartait et une cage apparaissait en pleine piste | `enCours` protège le compte à rebours, `CourseEnCours` protège toute la course — il faut les deux |
+
+### 2026-10-03 — les sorties de route
+
+**Ce que je voulais** : quand la voiture sort du circuit, le pilote meurt,
+réapparaît au spawn, et sa voiture revient à la fin de la course.
+
+**Ce qui existait déjà** : seule la **chute** sous Y = −60 tuait. Rouler dans
+l'herbe ou sur le talus sans tomber ne faisait rien.
+
+**Ce qui a été ajouté** :
+
+| Script | Changement |
+|---|---|
+| `Voitures` | un **rayon** part du siège vers le bas : s'il touche autre chose que la route pendant plus de `TOLERANCE` = 1 s, le pilote meurt et sa voiture est détruite |
+| `CompteurTours` | un pilote mort pendant la course est **éliminé** (compté comme « fini »), sinon la course l'attendait pour toujours |
+| `Affichage` | le panneau affiche « COURSE / ELIMINE » en rouge |
+
+**Comment on sait ce qui est « la route »** : par le **nom** du dossier dans
+`Circuit` (`Route`, `Damier`, `Grille`, `LigneDepart`, `Tremplin`…). Rien
+n'est écrit en coordonnées : si on régénère le circuit, ça marche toujours.
+
+**Vérifié par le calcul, pas à l'œil** : 15 147 rayons tirés sur toute la
+route. 9 tombaient sur `PilierTremplin`, qui dépasse de 2 studs de chaque
+côté sous le bord de la rampe → ajouté à la liste de la route.
+
+**Testé en jeu** : sortie dans l'herbe → mort, réapparition au spawn, voitures
+revenues sur la grille. ✅
+
+| L'erreur évitée | Ce qui se serait passé | La règle |
+|---|---|---|
+| Juger le sol en plein saut | au-dessus de la fosse, le rayon touche les piques → éliminé en l'air | on ne juge que si le sol est à moins de 8 studs (`EN_L_AIR`) ; et le rayon traverse le dossier `Piques` |
+| Tuer dès qu'une roue touche l'herbe | éliminé au moindre écart | une **tolérance** d'1 s : il faut **rester** dehors |
+| Oublier le compteur de tours | le pilote mort était encore attendu → course jamais finie → voitures jamais revenues | quand on ajoute une façon de quitter la course, relire qui attend la fin de la course |
 
 ---
 
