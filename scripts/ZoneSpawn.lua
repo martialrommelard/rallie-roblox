@@ -796,6 +796,154 @@ if TOIT and MURS then
 		profToit, PROFONDEUR - profToit, yToit))
 end
 
+-- ---- LE TABLEAU DU CLASSEMENT (2026-10-03) ----
+-- Un ecran contre le mur du fond du spawn (le cote plat), tourne vers
+-- l interieur. Le generateur pose l ecran et ses lignes VIDES ; c est le
+-- script Classement (ServerScriptService) qui les remplit avec les
+-- meilleurs temps, et les tient a jour.
+-- Ou ? La ou il a ete pose a la main : a DROITE du passage. On le centre
+-- pile sur le morceau de mur entre le passage et le batiment de droite,
+-- le dos colle au verre.
+local TABLEAU      = true
+local TAB_L, TAB_H = 20, 10.8  -- largeur et hauteur de l ecran (26 x 14 : trop grand)
+local TAB_COTE     = 1         -- 1 = a droite du passage, -1 = a gauche
+local TAB_BAS      = 3         -- hauteur du bas de l ecran au-dessus du sol
+local TAB_E        = 0.8       -- epaisseur de l ecran
+local NB_CLASSES   = 10        -- le top 10
+if TABLEAU then
+	-- le milieu du morceau de mur libre : entre le bord du passage et l aile
+	local a = milieu + TAB_COTE * (PASSAGE / 2 + math.min(xCoin, DEMI_LARGEUR)) / 2
+	local yB = hautY + TAB_BAS
+	local dosEcran = dos - MUR_E / 2                -- la face interieure du verre
+	local ecran = pave("TableauClassement", a - TAB_L / 2, a + TAB_L / 2, dosEcran - TAB_E, dosEcran,
+		yB, yB + TAB_H, Enum.Material.SmoothPlastic, Color3.fromRGB(18, 22, 30))
+	-- le cadre neon, sur la face qui regarde le spawn
+	local f1, f2 = dosEcran - TAB_E - 0.15, dosEcran - TAB_E
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a + TAB_L / 2 + 0.4, f1, f2, yB + TAB_H, yB + TAB_H + 0.4, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a + TAB_L / 2 + 0.4, f1, f2, yB - 0.4, yB, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a - TAB_L / 2, f1, f2, yB, yB + TAB_H, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a + TAB_L / 2, a + TAB_L / 2 + 0.4, f1, f2, yB, yB + TAB_H, Enum.Material.Neon, NEON)
+
+	-- L AFFICHAGE : une SurfaceGui, sur la face tournee vers le spawn.
+	-- Le pave a son axe X le long de la piste et son axe Y vers le haut ;
+	-- sa face "Front" regarde vers -(X x Y). On choisit la bonne face.
+	local devantVers = -(sens:Cross(haut))
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Ecran"
+	gui.Face = (devantVers:Dot(versRoute) > 0) and Enum.NormalId.Front or Enum.NormalId.Back
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0          -- l ecran brille tout seul, meme dans l ombre
+	gui.Parent = ecran
+
+	local function texte(nom, parent, pos, taille, police, couleur, aligne)
+		local t = Instance.new("TextLabel")
+		t.Name = nom
+		t.BackgroundTransparency = 1
+		t.Position = pos
+		t.Size = taille
+		t.Font = police
+		t.TextColor3 = couleur
+		t.TextScaled = true
+		t.TextXAlignment = aligne or Enum.TextXAlignment.Center
+		t.Text = ""
+		t.Parent = parent
+		return t
+	end
+	texte("Titre", gui, UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.13), Enum.Font.GothamBlack, NEON).Text = "MEILLEURS TEMPS"
+	local lignes = Instance.new("Frame")
+	lignes.Name = "Lignes"
+	lignes.BackgroundTransparency = 1
+	lignes.Position = UDim2.fromScale(0.06, 0.19)
+	lignes.Size = UDim2.fromScale(0.88, 0.72)
+	lignes.Parent = gui
+	local OR, ARGENT, BRONZE = Color3.fromRGB(255, 205, 60), Color3.fromRGB(215, 220, 230), Color3.fromRGB(215, 140, 80)
+	for n = 1, NB_CLASSES do
+		local couleur = (n == 1 and OR) or (n == 2 and ARGENT) or (n == 3 and BRONZE) or Color3.fromRGB(235, 240, 250)
+		local ligne = texte("Ligne" .. n, lignes, UDim2.fromScale(0, (n - 1) / NB_CLASSES),
+			UDim2.new(0.7, 0, 1 / NB_CLASSES, -4), Enum.Font.GothamBold, couleur, Enum.TextXAlignment.Left)
+		ligne.Text = n .. ".  ---"
+		texte("Temps", ligne, UDim2.fromScale(1, 0), UDim2.fromScale(0.43, 1), Enum.Font.RobotoMono, NEON,
+			Enum.TextXAlignment.Right)
+	end
+	texte("Pied", gui, UDim2.fromScale(0.05, 0.92), UDim2.fromScale(0.9, 0.06), Enum.Font.Gotham,
+		Color3.fromRGB(130, 140, 160)).Text = "en attente du premier temps..."
+end
+
+-- ---- LE BOUTON "DEMARRAGE DE LA COURSE" (2026-10-03) ----
+-- Au bout de l arrondi, pres du verre, face a la piste : un socle, un
+-- bouton rouge avec un anneau neon, et DERRIERE le bouton (entre lui et
+-- le verre), sur un mat, le panneau.
+-- Le bouton porte un ProximityPrompt nomme "PromptCourse" : c est le
+-- script DepartCourse (ServerScriptService) qui reagit quand on appuie.
+--   vue de cote :     verre │  ┌──────────────────┐
+--                           │  │ DEMARRAGE DE LA  │ <- le panneau, derriere
+--                           │  └───────┬──────────┘
+--                           │          │   ▄███▄    <- le bouton
+--                           │          │   █████    <- le socle    <- on arrive du spawn
+local BOUTON      = true
+local BOUTON_VERRE = 6       -- studs entre le bouton et le verre de l arrondi
+local SOCLE_H     = 3.2      -- hauteur du socle
+local PANNEAU_L   = 11       -- largeur du panneau
+local PANNEAU_H   = 2.6      -- hauteur du panneau
+local PANNEAU_BAS = 7        -- hauteur du bas du panneau au-dessus du sol
+if BOUTON then
+	local a = milieu                                   -- au milieu, le long de la piste
+	local l = dos - PROFONDEUR + BOUTON_VERRE          -- pres du bout de l arrondi
+	local y = hautY
+	pave("SocleBouton", a - 1.6, a + 1.6, l - 1.6, l + 1.6, y, y + SOCLE_H, MATIERE_SOL, COULEUR_SOL)
+	pave("AnneauNeon", a - 1.75, a + 1.75, l - 1.75, l + 1.75, y + SOCLE_H - 0.3, y + SOCLE_H,
+		Enum.Material.Neon, NEON)
+	-- le bouton : un cylindre couche sur le cote, puis redresse (un
+	-- cylindre Roblox a son axe sur X : on le tourne de 90 degres)
+	local bouton = Instance.new("Part")
+	bouton.Name = "BoutonCourse"
+	bouton.Shape = Enum.PartType.Cylinder
+	bouton.Anchored = true
+	bouton.Size = Vector3.new(0.6, 2.2, 2.2)
+	bouton.CFrame = CFrame.new(origine + sens * a + cote * l + haut * (y + SOCLE_H + 0.3))
+		* CFrame.Angles(0, 0, math.rad(90))
+	bouton.Material = Enum.Material.Neon
+	bouton.Color = Color3.fromRGB(255, 50, 60)
+	bouton.Parent = zone
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PromptCourse"
+	prompt.ActionText = "Choisir ma place"
+	prompt.ObjectText = "Demarrage de la course"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = bouton
+	-- le mat, du socle jusqu au panneau, cote VERRE (derriere le bouton
+	-- quand on arrive du spawn : la, "l - ..." = vers la piste)
+	pave("MatPanneau", a - 0.2, a + 0.2, l - 1.6, l - 1.2, y + SOCLE_H, y + PANNEAU_BAS, MATIERE_SOL, COULEUR_SOL)
+	-- le panneau, et le texte sur ses DEUX faces (on le voit de partout)
+	local panneau = pave("PanneauCourse", a - PANNEAU_L / 2, a + PANNEAU_L / 2, l - 1.6, l - 1.2,
+		y + PANNEAU_BAS, y + PANNEAU_BAS + PANNEAU_H, Enum.Material.SmoothPlastic, Color3.fromRGB(18, 22, 30))
+	pave("CadreNeon", a - PANNEAU_L / 2 - 0.2, a + PANNEAU_L / 2 + 0.2, l - 1.7, l - 1.1,
+		y + PANNEAU_BAS - 0.2, y + PANNEAU_BAS, Enum.Material.Neon, NEON)
+	for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back}) do
+		local g = Instance.new("SurfaceGui")
+		g.Face = face
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = 40
+		g.LightInfluence = 0
+		g.Parent = panneau
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.TextColor3 = NEON
+		t.Text = "DÉMARRAGE DE LA COURSE"
+		t.Parent = g
+		local marge = Instance.new("UIPadding")
+		marge.PaddingLeft, marge.PaddingRight = UDim.new(0.04, 0), UDim.new(0.04, 0)
+		marge.PaddingTop, marge.PaddingBottom = UDim.new(0.12, 0), UDim.new(0.12, 0)
+		marge.Parent = t
+	end
+end
+
 -- ---- LE POINT D APPARITION ----
 -- On reprend le SpawnLocation qui existe (ou on en cree un), on le pose
 -- sur la plateforme et on le tourne vers la piste : le joueur apparait

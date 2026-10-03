@@ -72,11 +72,69 @@ local function enTexte(t)
 	return string.format("%d:%05.2f", minutes, secondes)
 end
 
+-- ============================================================
+--  LE RESULTAT (en grand, au milieu de l ecran)
+--  ELIMINE en rouge : il s en va quand on reapparait au spawn.
+--  A l arrivee, en vert : la place dans la course et le temps
+--  ("1er  —  0:47.84"), pendant DUREE_RESULTAT secondes.
+--  L etiquette est creee ici si elle manque : rien a poser a la main.
+-- ============================================================
+local ROUGE          = Color3.fromRGB(255, 70, 70)
+local VERT           = Color3.fromRGB(110, 255, 150)
+local DUREE_RESULTAT = 10
+
+local resultat = script.Parent:FindFirstChild("Resultat")
+if not resultat then
+	resultat = Instance.new("TextLabel")
+	resultat.Name = "Resultat"
+	resultat.AnchorPoint = Vector2.new(0.5, 0.5)
+	resultat.Position = UDim2.fromScale(0.5, 0.3)
+	resultat.Size = UDim2.fromScale(0.6, 0.13)
+	resultat.BackgroundTransparency = 1
+	resultat.Font = Enum.Font.GothamBlack
+	resultat.TextScaled = true
+	resultat.TextStrokeTransparency = 0.3
+	resultat.Visible = false
+	resultat.Parent = script.Parent
+end
+
+-- 1 -> "1er", 2 -> "2ème", 3 -> "3ème"...
+local function enPlace(rang)
+	return (rang == 1) and "1er" or (rang .. "ème")
+end
+
+-- Chaque affichage a un numero : un vieux "cacher dans 10 s" ne doit pas
+-- effacer un resultat plus recent.
+local numeroAffichage = 0
+local function montrer(texte, couleur, duree)
+	numeroAffichage += 1
+	local n = numeroAffichage
+	resultat.Text, resultat.TextColor3 = texte, couleur
+	resultat.Visible = true
+	if duree then
+		task.delay(duree, function()
+			if numeroAffichage == n then resultat.Visible = false end
+		end)
+	end
+end
+local function cacherResultat()
+	numeroAffichage += 1
+	resultat.Visible = false
+end
+
+-- On reapparait au spawn (nouveau personnage) : ELIMINE s en va.
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+	if resultat.Visible and resultat.TextColor3 == ROUGE then
+		cacherResultat()
+	end
+end)
+
 -- Nouvelle course : on repart de zero.
 workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
 	if workspace:GetAttribute("CourseEnCours") then
 		tempsFinal = nil
 		chrono.TextColor3 = BLANC
+		cacherResultat()
 	end
 end)
 
@@ -90,30 +148,29 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-majTours.OnClientEvent:Connect(function(tour, total, fini, temps)
-	panneau.Visible = true
-	boiteChrono.Visible = true   -- seuls les pilotes le recoivent : pas les spectateurs
-
-	-- Le serveur envoie le temps officiel quand j ai fini (ou suis elimine) :
-	-- le chrono s arrete dessus.
-	if fini and temps then
+-- "fini" vaut false (en course), true (arrive) ou "elimine" (sorti).
+-- "temps" (le temps officiel) et "rang" (la place a l arrivee) viennent
+-- du serveur : l ecran ne fait qu afficher.
+majTours.OnClientEvent:Connect(function(tour, total, fini, temps, rang)
+	if fini then
+		-- FINI ou ELIMINE : le chrono et les tours disparaissent
 		tempsFinal = temps
-		chrono.TextColor3 = (fini == "elimine") and Color3.fromRGB(255, 70, 70)
-			or Color3.fromRGB(120, 255, 150)
+		panneau.Visible = false
+		boiteChrono.Visible = false
+		if fini == "elimine" then
+			montrer("ÉLIMINÉ", ROUGE)                    -- jusqu au retour au spawn
+		else
+			montrer(enPlace(rang or 1) .. "  —  " .. enTexte(temps or 0), VERT, DUREE_RESULTAT)
+		end
+		return
 	end
 
-	-- "fini" vaut true (arrive), false (en course) ou "elimine" (sorti).
-	if fini == "elimine" then
-		titre.Text = "COURSE"
-		valeur.Text = "ELIMINE"
-		valeur.TextColor3 = Color3.fromRGB(255, 70, 70)
-	elseif fini then
-		titre.Text = "COURSE"
-		valeur.Text = "TERMINEE"
-		valeur.TextColor3 = Color3.fromRGB(120, 255, 150)
-	else
-		titre.Text = "TOUR"
-		valeur.Text = tour .. " / " .. total
-		valeur.TextColor3 = Color3.fromRGB(255, 255, 255)
-	end
+	-- EN COURSE : le panneau des tours et le chrono (seuls les pilotes
+	-- recoivent ce message : pas les spectateurs)
+	cacherResultat()
+	panneau.Visible = true
+	boiteChrono.Visible = true
+	titre.Text = "TOUR"
+	valeur.Text = tour .. " / " .. total
+	valeur.TextColor3 = BLANC
 end)

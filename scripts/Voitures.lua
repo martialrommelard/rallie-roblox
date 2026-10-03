@@ -73,6 +73,9 @@ local function placerVoitures()
 			n += 1
 			local v = modele:Clone()
 			v.Name = "Voiture" .. n
+			-- sur quelle place de la grille elle est : le bouton de depart du
+			-- spawn s en sert pour mettre chaque joueur dans SA voiture
+			v:SetAttribute("Place", place.Name)
 			v.Parent = dossier
 			-- PivotTo deplace tout le modele d un bloc, en gardant ses pieces
 			-- assemblees. On le fait APRES l avoir mis dans le Workspace.
@@ -248,11 +251,23 @@ workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
 		end
 	end
 
+	-- GrilleEnPlace : vrai quand les 6 voitures attendent sur la grille.
+	-- Le bouton de depart du spawn (script DepartCourse) le regarde : on
+	-- ne lance pas une course pendant que les voitures reviennent (sinon
+	-- placerVoitures effacerait les voitures des joueurs deja assis).
+	if maintenant then
+		workspace:SetAttribute("GrilleEnPlace", false)
+	end
+
 	if courseAvant and not maintenant then
-		task.delay(DELAI_RESET, placerVoitures)
+		task.delay(DELAI_RESET, function()
+			placerVoitures()
+			workspace:SetAttribute("GrilleEnPlace", true)
+		end)
 	end
 
 	courseAvant = maintenant
 end)
 
 placerVoitures()
+workspace:SetAttribute("GrilleEnPlace", true)
