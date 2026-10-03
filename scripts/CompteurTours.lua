@@ -133,6 +133,66 @@ local function enTexte(t)
 	return string.format("%d:%05.2f", minutes, secondes)
 end
 
+-- ---- LE TABLEAU DE LA DERNIERE COURSE (dans le spawn) ----
+-- Le classement de la course, mis a jour EN DIRECT : a chaque arrivee et
+-- a chaque elimination. Les arrives dans l ordre (or, argent, bronze pour
+-- les 3 premiers), puis les elimines en rouge. L ecran "TableauCourse" et
+-- ses lignes vides sont poses par le generateur scripts/ZoneSpawn.lua.
+local resultats = {}     -- les arrives : {nom, temps}, dans l ordre
+local elimines  = {}     -- les elimines : {nom, tours faits}
+local COULEURS_PODIUM = {Color3.fromRGB(255, 205, 60), Color3.fromRGB(215, 220, 230), Color3.fromRGB(215, 140, 80)}
+local BLANC_TABLEAU   = Color3.fromRGB(235, 240, 250)
+local ROUGE_TABLEAU   = Color3.fromRGB(255, 80, 80)
+
+local function afficherResultats()
+	local zone = workspace:FindFirstChild("ZoneSpawn")
+	local tableau = zone and zone:FindFirstChild("TableauCourse")
+	local ecran = tableau and tableau:FindFirstChild("Ecran")
+	if not ecran then return end
+
+	-- on remplit les lignes une par une : d abord les arrives, puis les elimines
+	local lignes = {}
+	for rang, r in ipairs(resultats) do
+		table.insert(lignes, {
+			texte = ((rang == 1) and "1er" or (rang .. "ème")) .. "  " .. r.nom,
+			temps = enTexte(r.temps),
+			couleur = COULEURS_PODIUM[rang] or BLANC_TABLEAU,
+		})
+	end
+	for _, e in ipairs(elimines) do
+		table.insert(lignes, {
+			texte = "ÉLIMINÉ  " .. e.nom,
+			temps = e.tours .. " / " .. NB_TOURS .. " tours",
+			couleur = ROUGE_TABLEAU,
+		})
+	end
+	local n = 1
+	while ecran.Lignes:FindFirstChild("Ligne" .. n) do
+		local ligne = ecran.Lignes["Ligne" .. n]
+		local l = lignes[n]
+		ligne.Text = l and l.texte or ""
+		ligne.TextColor3 = l and l.couleur or BLANC_TABLEAU
+		ligne.Temps.Text = l and l.temps or ""
+		n += 1
+	end
+	if workspace:GetAttribute("CourseEnCours") then
+		ecran.Pied.Text = "course en cours..."
+	elseif #lignes == 0 then
+		ecran.Pied.Text = "en attente de la fin d'une course..."
+	else
+		ecran.Pied.Text = #resultats .. " à l'arrivée, " .. #elimines .. " éliminé(s)"
+	end
+end
+
+-- une nouvelle course : on efface le classement de la precedente ; la
+-- course finie : on met a jour le bas du tableau
+workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
+	if workspace:GetAttribute("CourseEnCours") then
+		resultats, elimines = {}, {}
+	end
+	afficherResultats()
+end)
+
 -- ---- LE RETOUR AU SPAWN, APRES L ARRIVEE ----
 -- Le joueur qui a fini revient au spawn, et sa voiture disparait : elle
 -- reviendra sur la grille avec les autres, quand TOUTE la course sera
@@ -186,6 +246,9 @@ RunService.Heartbeat:Connect(function()
 			local temps = tempsDeCourse()
 			majTours:FireClient(joueur, passages[joueur], NB_TOURS, "elimine", temps)
 			print(joueur.Name .. " est elimine apres " .. enTexte(temps))
+			-- les tours COMPLETS : le 1er passage sur la ligne ne fait que lancer le tour 1
+			table.insert(elimines, {nom = joueur.Name, tours = math.max(0, passages[joueur] - 1)})
+			afficherResultats()
 
 			if tousOntFini() then
 				workspace:SetAttribute("CourseEnCours", false)
@@ -227,6 +290,8 @@ RunService.Heartbeat:Connect(function()
 					-- pour le script Classement : il ecoute cet attribut
 					joueur:SetAttribute("DernierTemps", temps)
 					print(joueur.Name .. " a termine ses " .. NB_TOURS .. " tours en " .. enTexte(temps))
+					table.insert(resultats, {nom = joueur.Name, temps = temps})
+					afficherResultats()
 					task.delay(RETOUR, renvoyerAuSpawn, joueur)
 
 					if tousOntFini() then

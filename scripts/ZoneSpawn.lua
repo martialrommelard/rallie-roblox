@@ -870,17 +870,19 @@ if TABLEAU then
 		Color3.fromRGB(130, 140, 160)).Text = "en attente du premier temps..."
 end
 
--- ---- L ECRAN DU PODIUM (2026-10-03) ----
--- Le podium est sur la montagne : du spawn, le toit le cache. Cet ecran,
--- de l AUTRE cote du passage (en face du tableau des records), le montre.
--- Le generateur pose l ecran et une "fenetre 3D" vide (un ViewportFrame) ;
--- le script Podium y met une COPIE du podium et des statues.
-local ECRAN_PODIUM = true
-if ECRAN_PODIUM and TABLEAU then
+-- ---- LE TABLEAU DE LA DERNIERE COURSE (2026-10-03) ----
+-- De l AUTRE cote du passage, en face du tableau des records : le
+-- classement de la derniere course. 1er, 2eme... avec les temps, puis les
+-- elimines en rouge. Le generateur pose l ecran et ses lignes VIDES ; c est
+-- le script CompteurTours qui les remplit a la fin de chaque course.
+-- (Il remplace l ecran "camera du podium", abandonne.)
+local TABLEAU_COURSE = true
+local NB_LIGNES_COURSE = 6     -- autant que de places sur la grille
+if TABLEAU_COURSE and TABLEAU then
 	local a = milieu - TAB_COTE * (PASSAGE / 2 + math.min(xCoin, DEMI_LARGEUR)) / 2
 	local yB = hautY + TAB_BAS
 	local dosEcran = dos - MUR_E / 2
-	local ecran = pave("EcranPodium", a - TAB_L / 2, a + TAB_L / 2, dosEcran - TAB_E, dosEcran,
+	local ecran = pave("TableauCourse", a - TAB_L / 2, a + TAB_L / 2, dosEcran - TAB_E, dosEcran,
 		yB, yB + TAB_H, Enum.Material.SmoothPlastic, Color3.fromRGB(18, 22, 30))
 	local f1, f2 = dosEcran - TAB_E - 0.15, dosEcran - TAB_E
 	pave("CadreNeon", a - TAB_L / 2 - 0.4, a + TAB_L / 2 + 0.4, f1, f2, yB + TAB_H, yB + TAB_H + 0.4, Enum.Material.Neon, NEON)
@@ -895,34 +897,37 @@ if ECRAN_PODIUM and TABLEAU then
 	gui.PixelsPerStud = 30
 	gui.LightInfluence = 0
 	gui.Parent = ecran
-	local vue = Instance.new("ViewportFrame")
-	vue.Name = "Vue"
-	vue.Size = UDim2.fromScale(1, 1)
-	vue.BackgroundColor3 = Color3.fromRGB(110, 160, 220)      -- un ciel
-	vue.Ambient = Color3.fromRGB(170, 170, 180)
-	vue.LightColor = Color3.fromRGB(255, 250, 240)
-	vue.LightDirection = Vector3.new(-1, -2, -1)
-	vue.Parent = gui
-	local function bandeau(nom, y, h, police)
+
+	local function texte(nom, parent, pos, taille, police, couleur, aligne)
 		local t = Instance.new("TextLabel")
 		t.Name = nom
-		t.Position = UDim2.fromScale(0, y)
-		t.Size = UDim2.fromScale(1, h)
-		t.BackgroundColor3 = Color3.fromRGB(18, 22, 30)
-		t.BackgroundTransparency = 0.25
-		t.BorderSizePixel = 0
+		t.BackgroundTransparency = 1
+		t.Position = pos
+		t.Size = taille
 		t.Font = police
+		t.TextColor3 = couleur
 		t.TextScaled = true
-		t.TextColor3 = NEON
-		t.ZIndex = 2
+		t.TextXAlignment = aligne or Enum.TextXAlignment.Center
 		t.Text = ""
-		t.Parent = gui
+		t.Parent = parent
 		return t
 	end
-	bandeau("Titre", 0, 0.14, Enum.Font.GothamBlack).Text = "PODIUM"
-	local bas = bandeau("Noms", 0.88, 0.12, Enum.Font.GothamBold)
-	bas.TextColor3 = Color3.fromRGB(240, 245, 255)
-	bas.Text = "en attente de la fin d'une course..."
+	texte("Titre", gui, UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.13), Enum.Font.GothamBlack, NEON).Text = "DERNIÈRE COURSE"
+	local lignes = Instance.new("Frame")
+	lignes.Name = "Lignes"
+	lignes.BackgroundTransparency = 1
+	lignes.Position = UDim2.fromScale(0.06, 0.19)
+	lignes.Size = UDim2.fromScale(0.88, 0.72)
+	lignes.Parent = gui
+	for n = 1, NB_LIGNES_COURSE do
+		local ligne = texte("Ligne" .. n, lignes, UDim2.fromScale(0, (n - 1) / NB_LIGNES_COURSE),
+			UDim2.new(0.7, 0, 1 / NB_LIGNES_COURSE, -6), Enum.Font.GothamBold, Color3.fromRGB(235, 240, 250),
+			Enum.TextXAlignment.Left)
+		texte("Temps", ligne, UDim2.fromScale(1, 0), UDim2.fromScale(0.43, 1), Enum.Font.RobotoMono, NEON,
+			Enum.TextXAlignment.Right)
+	end
+	texte("Pied", gui, UDim2.fromScale(0.05, 0.92), UDim2.fromScale(0.9, 0.06), Enum.Font.Gotham,
+		Color3.fromRGB(130, 140, 160)).Text = "en attente de la fin d'une course..."
 end
 
 -- ---- LE BOUTON "DEMARRAGE DE LA COURSE" (2026-10-03) ----
