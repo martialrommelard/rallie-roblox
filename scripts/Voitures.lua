@@ -5,8 +5,10 @@
 --  Il fait deux choses :
 --    1. il pose les voitures sur la grille -- au demarrage du jeu, et de
 --       nouveau apres chaque course ;
---    2. il surveille les chutes : si on sort du circuit, le pilote meurt
---       et sa voiture est detruite.
+--    2. il surveille les sorties de piste : si on tombe du circuit, OU si
+--       on roule hors de la route, le pilote meurt (il reapparait au
+--       SpawnLocation) et sa voiture est detruite. Elle reviendra sur la
+--       grille avec les autres a la fin de la course.
 --
 --  Rien n est ecrit en dur : le nombre de voitures est celui des
 --  emplacements de la grille, et chaque position est DEMANDEE au trait
@@ -24,6 +26,11 @@ local HAUTEUR     = 1.63   -- le DriveSeat est a 1.63 stud au-dessus des roues
 local GARDE       = 0.4    -- on pose la voiture juste au-dessus du sol
 local LONGUEUR    = 9      -- la longueur d un emplacement (les traits "Cote")
 local RETOURNER   = false  -- true si les voitures se posent a l envers
+
+local TOLERANCE   = 1      -- secondes hors de la route avant d etre elimine
+                           -- (une roue qui mord l herbe ne tue pas)
+local EN_L_AIR    = 8      -- a plus de 8 studs du sol, on est en plein saut :
+                           -- on ne juge pas ce qu il y a dessous
 
 local circuit = workspace:WaitForChild("Circuit")
 local grille  = circuit:WaitForChild("Grille")
@@ -94,25 +101,100 @@ local function voitureDe(objet)
 	return nil
 end
 
--- ---- LES CHUTES ----
+-- ---- EST-ON SUR LA ROUTE ? ----
+-- Les dossiers et pieces du Circuit sur lesquels on a le droit de rouler.
+-- Tout le reste (talus, montagne, eboulis, herbe, barrieres...) est
+-- hors piste. On les reconnait par leur NOM : si on reconstruit le circuit
+-- avec le generateur, ca marche toujours.
+-- PilierTremplin depasse de 2 studs de chaque cote, juste sous le bord de
+-- la rampe : verifie en tirant 15 000 rayons sur la route.
+local PISTE = {
+	Route = true, Damier = true, Grille = true, LigneDepart = true,
+	Tremplin = true, MarqueTremplin = true, PilierTremplin = true,
+}
+
+local function estPiste(objet)
+	if PISTE[objet.Name] then return true end
+	-- sinon on remonte jusqu au dossier range directement dans Circuit
+	local a = objet
+	while a and a.Parent ~= circuit do
+		a = a.Parent
+	end
+	return a ~= nil and PISTE[a.Name] == true
+end
+
+-- Le rayon part du siege et descend. Il traverse les voitures, les
+-- personnages, les cages, et la fosse a piques (sinon, au-dessus de la
+-- fosse, on croirait toucher le sol en plein saut).
+local rayon = RaycastParams.new()
+rayon.FilterType = Enum.RaycastFilterType.Exclude
+
+-- Vrai si le siege est POSE sur autre chose que la route.
+-- En l air (rien dessous, ou sol a plus de EN_L_AIR studs), on dit non :
+-- c est l atterrissage qui decidera.
+local function horsPiste(siege)
+	local ignores = {dossier, circuit:FindFirstChild("Piques"), circuit:FindFirstChild("CagesDepart")}
+	for _, j in ipairs(Players:GetPlayers()) do
+		if j.Character then table.insert(ignores, j.Character) end
+	end
+	rayon.FilterDescendantsInstances = ignores
+
+	local touche = workspace:Raycast(siege.Position, Vector3.new(0, -EN_L_AIR, 0), rayon)
+	return touche ~= nil and not estPiste(touche.Instance)
+end
+
+-- ---- ELIMINER UN PILOTE ----
+local function eliminer(joueur, humanoide, raison)
+	-- SeatPart dit dans quel siege il est assis, ou nil s il est a pied.
+	local siege = humanoide.SeatPart
+	local voiture = siege and voitureDe(siege) or nil
+
+	-- Health = 0 : Roblox le fait reapparaitre tout seul au SpawnLocation
+	-- (apres Players.RespawnTime secondes).
+	humanoide.Health = 0
+	if voiture then
+		voiture:Destroy()
+		print(joueur.Name .. " " .. raison .. ", sa voiture est detruite")
+	else
+		print(joueur.Name .. " " .. raison)
+	end
+end
+
+-- ---- LES SORTIES DE PISTE ----
+-- horsDepuis[joueur] = l heure (os.clock) ou il a quitte la route.
+local horsDepuis = {}
+Players.PlayerRemoving:Connect(function(joueur)
+	horsDepuis[joueur] = nil
+end)
+
 RunService.Heartbeat:Connect(function()
-	-- les joueurs tombes
 	for _, joueur in ipairs(Players:GetPlayers()) do
 		local perso = joueur.Character
 		local humanoide = perso and perso:FindFirstChildOfClass("Humanoid")
 		local torse = perso and perso:FindFirstChild("HumanoidRootPart")
 
-		if humanoide and torse and humanoide.Health > 0 and torse.Position.Y < SEUIL then
-			-- SeatPart dit dans quel siege il est assis, ou nil s il est a pied.
+		if humanoide and torse and humanoide.Health > 0 then
 			local siege = humanoide.SeatPart
-			local voiture = siege and voitureDe(siege) or nil
+			local enVoiture = siege ~= nil and voitureDe(siege) ~= nil
 
-			humanoide.Health = 0
-			if voiture then
-				voiture:Destroy()
-				print(joueur.Name .. " est tombe hors du circuit, sa voiture est detruite")
+			if torse.Position.Y < SEUIL then
+				-- tombe du circuit, a pied ou en voiture
+				horsDepuis[joueur] = nil
+				eliminer(joueur, humanoide, "est tombe hors du circuit")
+
+			elseif enVoiture and horsPiste(siege) then
+				-- hors de la route : on lance le chrono la premiere fois...
+				if not horsDepuis[joueur] then
+					horsDepuis[joueur] = os.clock()
+				-- ...et on elimine s il y est depuis plus de TOLERANCE secondes
+				elseif os.clock() - horsDepuis[joueur] > TOLERANCE then
+					horsDepuis[joueur] = nil
+					eliminer(joueur, humanoide, "est sorti de la route")
+				end
+
 			else
-				print(joueur.Name .. " est tombe hors du circuit")
+				-- sur la route, en l air ou a pied : tout va bien
+				horsDepuis[joueur] = nil
 			end
 		end
 	end

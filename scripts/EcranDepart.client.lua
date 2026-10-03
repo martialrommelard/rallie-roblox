@@ -55,7 +55,12 @@ local valeur   = panneau:WaitForChild("Valeur")
 majTours.OnClientEvent:Connect(function(tour, total, fini)
 	panneau.Visible = true
 
-	if fini then
+	-- "fini" vaut true (arrive), false (en course) ou "elimine" (sorti).
+	if fini == "elimine" then
+		titre.Text = "COURSE"
+		valeur.Text = "ELIMINE"
+		valeur.TextColor3 = Color3.fromRGB(255, 70, 70)
+	elseif fini then
 		titre.Text = "COURSE"
 		valeur.Text = "TERMINEE"
 		valeur.TextColor3 = Color3.fromRGB(120, 255, 150)

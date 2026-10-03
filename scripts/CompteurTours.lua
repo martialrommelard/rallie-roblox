@@ -86,6 +86,21 @@ RunService.Heartbeat:Connect(function()
 	for _, joueur in ipairs(Players:GetPlayers()) do
 		local perso = joueur.Character
 		local torse = perso and perso:FindFirstChild("HumanoidRootPart")
+		local humanoide = perso and perso:FindFirstChildOfClass("Humanoid")
+
+		-- MORT PENDANT LA COURSE (sortie de route, chute, piques...) :
+		-- il est elimine. On le compte comme "fini", sinon la course
+		-- l attendrait pour toujours et les voitures ne reviendraient jamais.
+		if humanoide and humanoide.Health <= 0 and not fini[joueur] then
+			fini[joueur] = true
+			majTours:FireClient(joueur, passages[joueur], NB_TOURS, "elimine")
+			print(joueur.Name .. " est elimine")
+
+			if tousOntFini() then
+				workspace:SetAttribute("CourseEnCours", false)
+				print("Course terminee : il ne reste personne en piste")
+			end
+		end
 
 		if torse and not fini[joueur] then
 			-- La position du joueur, vue depuis la ligne.
