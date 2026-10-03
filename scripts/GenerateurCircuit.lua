@@ -430,6 +430,81 @@ if derniereRoute then
 end
 
 -- ============================================================
+--  LES GLISSIERES DU TREMPLIN (ajoute le 2026-10-03)
+--  La rampe fait 70 studs de large, mais a l atterrissage la route
+--  retrecit et tourne : les barrieres n y sont plus qu a 27-33 studs de
+--  l axe. Qui decollait pres du bord retombait PILE sur une barriere,
+--  a ~115 studs/s vers le bas, et la voiture restait plantee dedans.
+--  Deux glissieres en entonnoir sur la rampe : on ne peut plus decoller
+--  que dans le couloir qui correspond a la zone d atterrissage.
+--  Rien n est ecrit en dur : on DEMANDE la largeur libre aux barrieres
+--  de la reception, cote par cote.
+-- ============================================================
+do
+	local t = circuit:FindFirstChild("Tremplin")
+	if t then
+		local RECEPTION  = 90   -- studs apres le bord ou l on peut retomber
+		local MARGE      = 3    -- studs entre la voiture et la barriere d en bas
+		local DROIT      = 30   -- longueur de glissiere droite avant le bord
+		local ENTONNOIR  = 40   -- longueur de la partie en biais
+		local PAS        = 5    -- une piece de glissiere tous les 5 studs
+
+		local u    = t.CFrame.LookVector                  -- le sens de la montee
+		local dirH = Vector3.new(u.X, 0, u.Z).Unit        -- le meme, a plat
+		local lat  = t.CFrame.RightVector
+		local lip  = (t.CFrame * CFrame.new(0, t.Size.Y/2, -t.Size.Z/2)).Position
+
+		-- La largeur libre a la reception, de chaque cote : la face
+		-- interieure de barriere la plus proche de l axe.
+		-- On teste les DEUX BOUTS de chaque barriere, pas son centre : dans
+		-- le virage de la reception elles sont en biais, et un bout peut
+		-- etre 2 studs plus pres de l axe que le milieu.
+		local libre = {[-1] = t.Size.X/2, [1] = t.Size.X/2}
+		for _, b in ipairs(fBar:GetChildren()) do
+			if b.Name == "Barriere" then
+				for _, z in ipairs({-0.5, 0, 0.5}) do
+					local rel = b.CFrame:PointToWorldSpace(Vector3.new(0, 0, b.Size.Z * z)) - lip
+					local av, cote = rel:Dot(dirH), rel:Dot(lat)
+					if av > 0 and av < RECEPTION and math.abs(cote) < 60 then
+						local s = cote > 0 and 1 or -1
+						libre[s] = math.min(libre[s], math.abs(cote) - b.Size.X/2)
+					end
+				end
+			end
+		end
+
+		-- On pose les glissieres sur ce qui est le plus haut : la route ou
+		-- la rampe (la rampe sort du bitume a mi-chemin).
+		local sol = RaycastParams.new()
+		sol.FilterType = Enum.RaycastFilterType.Include
+		sol.FilterDescendantsInstances = {fRoute, t}
+
+		for _, s in ipairs({-1, 1}) do
+			local fin   = libre[s] - MARGE + 1           -- centre de la glissiere (2 studs d epaisseur)
+			local debut = t.Size.X/2 - 1                 -- au bord de la route, au debut de l entonnoir
+			local points = {}
+			for d = DROIT + ENTONNOIR, 0, -PAS do        -- d = distance avant le bord
+				local k = math.clamp((d - DROIT) / ENTONNOIR, 0, 1)
+				local ecart = fin + (debut - fin) * k
+				local p = lip - dirH * d + lat * (s * ecart)
+				local hit = workspace:Raycast(p + Vector3.new(0, 40, 0), Vector3.new(0, -80, 0), sol)
+				-- 9 studs de haut, enfonces de 3 : la ou la rampe sort du
+				-- bitume, il restait 2.5 studs de vide sous la glissiere.
+				if hit then table.insert(points, hit.Position + Vector3.new(0, 1.5, 0)) end
+			end
+			for i = 1, #points - 1 do
+				local p1, p2 = points[i], points[i + 1]
+				bloc(fBar, "GlissiereTremplin", Vector3.new(2, 9, (p2 - p1).Magnitude + 0.3),
+					CFrame.lookAt((p1 + p2)/2, p2), Enum.Material.Metal,
+					(i % 2 == 0) and Color3.fromRGB(200, 40, 40) or Color3.fromRGB(235, 235, 235))
+			end
+			print(string.format("Glissiere %s : couloir de %.1f studs (barriere d en bas a %.1f)",
+				s < 0 and "gauche" or "droite", fin - 1, libre[s]))
+		end
+	end
+end
+
+-- ============================================================
 --  ARBRES sur les parties basses
 -- ============================================================
 for i = 1, N, 4 do
