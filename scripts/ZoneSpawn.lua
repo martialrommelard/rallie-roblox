@@ -1004,6 +1004,179 @@ if BOUTON then
 	end
 end
 
+-- ---- LA DECO DU SPAWN (2026-10-03) ----
+-- Dans le rond (pas dans les batiments) :
+--   1. une VOITURE D EXPOSITION sur un socle, qui tourne sur elle-meme
+--      (la rotation est faite chez chaque joueur : LocalScript AmbianceSpawn) ;
+--   2. des LIGNES NEON au sol, en pointilles, qui guident du point
+--      d apparition vers le bouton, le passage des gradins et les portes ;
+--   3. des BANCS (on peut s y asseoir) et des PLANTES le long du verre.
+-- Toutes les positions se donnent en (le long de la piste, profondeur
+-- depuis le cote plat), comme le reste du rond.
+local DECO        = true
+local EXPO_A      = 0.66     -- la voiture : 0 = cote plat, 1 = bout de l arrondi
+local SOCLE_R     = 12       -- rayon du socle de la voiture
+local POINTILLE   = 3        -- longueur d un trait des lignes au sol
+local TROU        = 1.6      -- vide entre deux traits
+local BLANC_BANC  = Color3.fromRGB(240, 240, 245)
+local VERT_PLANTE = Color3.fromRGB(70, 150, 70)
+if DECO then
+	local function pt(le_long, profondeur)
+		return centre + sens * le_long + versRoute * profondeur
+	end
+	local yDeco = hautY
+
+	-- 1. LA VOITURE D EXPOSITION ------------------------------------
+	local cExpo = pt(0, PROFONDEUR * EXPO_A)
+	local socle = Instance.new("Part")
+	socle.Name = "SocleExpo"
+	socle.Shape = Enum.PartType.Cylinder
+	socle.Anchored = true
+	socle.Size = Vector3.new(1, SOCLE_R * 2, SOCLE_R * 2)
+	-- un cylindre a son axe sur X : on le couche pour qu il soit plat
+	socle.CFrame = CFrame.new(cExpo + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	socle.Material = MATIERE_SOL
+	socle.Color = COULEUR_SOL
+	socle.Parent = zone
+	local anneau = socle:Clone()
+	anneau.Name = "AnneauExpo"
+	anneau.Size = Vector3.new(0.3, SOCLE_R * 2 + 0.8, SOCLE_R * 2 + 0.8)
+	anneau.CFrame = CFrame.new(cExpo + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	anneau.Material = Enum.Material.Neon
+	anneau.Color = NEON
+	anneau.Parent = zone
+
+	local modele = game:GetService("ServerStorage"):FindFirstChild("VoitureModele")
+	if modele then
+		local expo = modele:Clone()
+		expo.Name = "VoitureExpo"
+		-- une voiture POUR DE FAUX : tout est ancre, plus aucun script, plus
+		-- aucun son, plus aucun siege (sinon s y asseoir lancerait une course !)
+		for _, d in ipairs(expo:GetDescendants()) do
+			if d:IsA("BasePart") then d.Anchored = true end
+		end
+		for _, d in ipairs(expo:GetDescendants()) do
+			if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("Seat") or d:IsA("VehicleSeat") then
+				d:Destroy()
+			end
+		end
+		-- posee sur le socle : le bas de sa boite sur le dessus du socle
+		expo.Parent = zone
+		local cf, taille = expo:GetBoundingBox()
+		local hauteurPivot = expo:GetPivot().Position.Y - (cf.Position.Y - taille.Y / 2)
+		local base = CFrame.lookAt(cExpo + Vector3.new(0, 1 + hauteurPivot + 0.05, 0),
+			cExpo + Vector3.new(0, 1 + hauteurPivot + 0.05, 0) + sens)
+		expo:PivotTo(base)
+		expo:SetAttribute("Base", base)     -- le LocalScript la fait tourner autour de ce point
+	end
+
+	-- 2. LES LIGNES NEON AU SOL -------------------------------------
+	local function ligne(a, b)
+		local d = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+		local longueur = d.Magnitude
+		local dir = d.Unit
+		local x = 0
+		while x + POINTILLE <= longueur do
+			local m = a + dir * (x + POINTILLE / 2)
+			local trait = Instance.new("Part")
+			trait.Name = "LigneSol"
+			trait.Anchored = true
+			trait.CanCollide = false
+			trait.CanQuery = false
+			trait.Size = Vector3.new(0.4, 0.06, POINTILLE)
+			trait.CFrame = CFrame.lookAt(Vector3.new(m.X, yDeco + 0.06, m.Z), Vector3.new(m.X, yDeco + 0.06, m.Z) + dir)
+			trait.Material = Enum.Material.Neon
+			trait.Color = NEON
+			trait.Parent = zone
+			x += POINTILLE + TROU
+		end
+	end
+	local pSpawn = PROFONDEUR * SPAWN_A
+	-- vers le bouton (en passant de part et d autre du socle de la voiture)
+	local pBouton = PROFONDEUR - BOUTON_VERRE - 2
+	for _, s in ipairs({-1, 1}) do
+		ligne(pt(s * 2.5, pSpawn + 7), pt(s * (SOCLE_R + 2), PROFONDEUR * EXPO_A))
+		ligne(pt(s * (SOCLE_R + 2), PROFONDEUR * EXPO_A), pt(s * 2.5, pBouton))
+	end
+	-- vers le passage des gradins (le cote plat, au milieu)
+	ligne(pt(0, pSpawn - 7), pt(0, 2))
+	-- vers les portes des deux batiments
+	if AILES then
+		local pPorte = dos - (devantAile + dos) / 2       -- profondeur de la porte
+		for _, s in ipairs({-1, 1}) do
+			ligne(pt(s * 7, pSpawn), pt(s * (xCoin - 3), pPorte))
+		end
+	end
+
+	-- 3. LES BANCS ET LES PLANTES, LE LONG DU VERRE -----------------
+	-- "a" = l angle sur l arrondi (pi/2 = le bout, ou est le bouton)
+	local function surLarrondi(a, recul)
+		local p = bord(a)
+		local versCentre = Vector3.new(centre.X - p.X, 0, centre.Z - p.Z).Unit
+		return p + versCentre * recul, -versCentre      -- la position, et la direction du verre
+	end
+	for _, a in ipairs({0.62, 0.95, math.pi - 0.95, math.pi - 0.62}) do
+		local p, versVerre = surLarrondi(a, 5)
+		local cf = CFrame.lookAt(p + Vector3.new(0, yDeco - p.Y, 0), p + Vector3.new(0, yDeco - p.Y, 0) + versVerre)
+		-- l assise : un vrai Seat, tourne vers le verre (on regarde la piste)
+		local assise = Instance.new("Seat")
+		assise.Name = "Banc"
+		assise.Anchored = true
+		assise.Size = Vector3.new(7, 0.6, 2.2)
+		assise.CFrame = cf * CFrame.new(0, 1.8, 0)
+		assise.Material = Enum.Material.SmoothPlastic
+		assise.Color = BLANC_BANC
+		assise.Parent = zone
+		for _, x in ipairs({-2.8, 2.8}) do
+			local pied = Instance.new("Part")
+			pied.Name = "PiedBanc"
+			pied.Anchored = true
+			pied.Size = Vector3.new(0.5, 1.5, 1.8)
+			pied.CFrame = cf * CFrame.new(x, 0.75, 0)
+			pied.Material = Enum.Material.SmoothPlastic
+			pied.Color = Color3.fromRGB(60, 62, 70)
+			pied.Parent = zone
+		end
+		local dossier = Instance.new("Part")
+		dossier.Name = "DossierBanc"
+		dossier.Anchored = true
+		dossier.Size = Vector3.new(7, 1.8, 0.35)
+		dossier.CFrame = cf * CFrame.new(0, 2.9, 1.0)
+		dossier.Material = Enum.Material.SmoothPlastic
+		dossier.Color = BLANC_BANC
+		dossier.Parent = zone
+	end
+	for _, a in ipairs({0.785, math.pi - 0.785, math.pi / 2 - 0.22, math.pi / 2 + 0.22}) do
+		local p = surLarrondi(a, 4)
+		local sol = Vector3.new(p.X, yDeco, p.Z)
+		local pot = Instance.new("Part")
+		pot.Name = "Pot"
+		pot.Shape = Enum.PartType.Cylinder
+		pot.Anchored = true
+		pot.Size = Vector3.new(2.6, 3, 3)
+		pot.CFrame = CFrame.new(sol + Vector3.new(0, 1.3, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		pot.Material = Enum.Material.SmoothPlastic
+		pot.Color = Color3.fromRGB(45, 48, 56)
+		pot.Parent = zone
+		local lisere = pot:Clone()
+		lisere.Name = "LisereNeon"
+		lisere.Size = Vector3.new(0.25, 3.2, 3.2)
+		lisere.CFrame = CFrame.new(sol + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		lisere.Material = Enum.Material.Neon
+		lisere.Color = NEON
+		lisere.Parent = zone
+		local feuilles = Instance.new("Part")
+		feuilles.Name = "Feuilles"
+		feuilles.Shape = Enum.PartType.Ball
+		feuilles.Anchored = true
+		feuilles.Size = Vector3.new(4.2, 4.2, 4.2)
+		feuilles.Position = sol + Vector3.new(0, 4.4, 0)
+		feuilles.Material = Enum.Material.Grass
+		feuilles.Color = VERT_PLANTE
+		feuilles.Parent = zone
+	end
+end
+
 -- ---- LE POINT D APPARITION ----
 -- On reprend le SpawnLocation qui existe (ou on en cree un), on le pose
 -- sur la plateforme et on le tourne vers la piste : le joueur apparait
