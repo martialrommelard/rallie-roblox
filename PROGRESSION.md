@@ -15,6 +15,15 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 **Étape 3 (le départ complet et la course en 3 tours) : TERMINÉE ✅**
 **Sorties de route : TERMINÉ ✅ — rouler hors de la route élimine (2026-10-03)**
 **Le chronomètre : TERMINÉ ✅ — en haut au milieu, du vert à l'arrivée (2026-10-03)**
+**La zone de spawn et les gradins : EN COURS 🚧 (2026-10-03)** — générateur
+`scripts/ZoneSpawn.lua` (copie dans Studio : `ServerStorage/Outils/ZoneSpawn`,
+lancée par `loadstring`). Plateforme blanche en demi-rond à 43 studs de haut,
+devant la ligne ; escalier double + palier ; gradins de 10 rangées surélevés
+et **calculés par la ligne de vue** ; plancher et garde-fous en verre ;
+477 sièges à dossier ; zone de chute mortelle derrière (`scripts/ZoneChute.lua`).
+Reste : les murs de verre et le toit, une sortie vers la piste, une entrée
+en bas de l'escalier (il est enfermé entre les deux carrés posés à la main),
+et vérifier qu'on s'assoit bien sur les sièges.
 
 Aussi le 2026-10-03 : voitures recalées sur les traits de la grille, cages
 rouges qui ne grandissent plus, voitures vides qui disparaissent au vert,
