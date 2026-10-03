@@ -853,6 +853,14 @@ if BUREAUX and AILES then
 		hMin, hMax = etendue(axeH)
 		vMin, vMax = etendue(axeV)
 	end
+	-- le DEPART doit etre en BAS du tableau : s il tombe dans la moitie du
+	-- haut, on tourne le dessin d un demi-tour (il remplit toujours le tableau)
+	local ld0 = workspace.Circuit:FindFirstChild("LigneDepart")
+	if ld0 and ld0.Position:Dot(axeV) > (vMin + vMax) / 2 then
+		axeH, axeV = -axeH, -axeV
+		hMin, hMax = -hMax, -hMin
+		vMin, vMax = -vMax, -vMin
+	end
 	-- l echelle : le circuit tient dans le tableau (moins une marge, et le titre en haut)
 	local k = math.min((CROQUIS_L - 4) / (hMax - hMin), (CROQUIS_H - 3.5) / (vMax - vMin))
 	local hC, vC = (hMin + hMax) / 2, (vMin + vMax) / 2
