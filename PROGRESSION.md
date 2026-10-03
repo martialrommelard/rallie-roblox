@@ -377,6 +377,9 @@ revenues sur la grille. ✅
 
 ### 2026-10-03 (fin) — le spawn, le bouton, les records, les bureaux
 
+> Le déroulé complet de la séance, avec mes demandes mot pour mot, est dans
+> [`lecons/06-discussion-2026-10-03.md`](lecons/06-discussion-2026-10-03.md).
+
 | Ce que j'ai demandé | Ce qui a été fait |
 |---|---|
 | Un spawn en demi-rond devant la ligne, avec des gradins | plateforme blanche à 43 studs de haut, gradins de 10 rangées **calculés par la ligne de vue**, 477 sièges bleus à dossier, garde-fous en verre, zone de chute mortelle |
