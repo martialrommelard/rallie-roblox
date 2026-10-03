@@ -15,15 +15,16 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 **Étape 3 (le départ complet et la course en 3 tours) : TERMINÉE ✅**
 **Sorties de route : TERMINÉ ✅ — rouler hors de la route élimine (2026-10-03)**
 **Le chronomètre : TERMINÉ ✅ — en haut au milieu, du vert à l'arrivée (2026-10-03)**
-**La zone de spawn et les gradins : EN COURS 🚧 (2026-10-03)** — générateur
-`scripts/ZoneSpawn.lua` (copie dans Studio : `ServerStorage/Outils/ZoneSpawn`,
-lancée par `loadstring`). Plateforme blanche en demi-rond à 43 studs de haut,
-devant la ligne ; escalier double + palier ; gradins de 10 rangées surélevés
-et **calculés par la ligne de vue** ; plancher et garde-fous en verre ;
-477 sièges à dossier ; zone de chute mortelle derrière (`scripts/ZoneChute.lua`).
-Reste : les murs de verre et le toit, une sortie vers la piste, une entrée
-en bas de l'escalier (il est enfermé entre les deux carrés posés à la main),
-et vérifier qu'on s'assoit bien sur les sièges.
+**La zone de spawn : TERMINÉE ✅ (2026-10-03)** — tout est construit par le
+générateur `scripts/ZoneSpawn.lua` (1781 lignes ; copie dans Studio :
+`ServerStorage/Outils/ZoneSpawn`, lancée par `loadstring`). Demi-rond blanc
+en hauteur, gradins calculés par la ligne de vue, murs de verre fondus, toit
+blanc, deux bâtiments à portes coulissantes, tableau des records, bouton
+« DÉMARRAGE DE LA COURSE », tableau de la dernière course, voiture
+d'exposition qui tourne, bancs, jardin, massif le long du verre, mousse
+derrière le bouton, et **les bureaux de la direction de course** (13 îlots,
+croquis du circuit au fond).
+**Records, bouton de départ, podium, minimap : TERMINÉS ✅ (2026-10-03)**
 
 Aussi le 2026-10-03 : voitures recalées sur les traits de la grille, cages
 rouges qui ne grandissent plus, voitures vides qui disparaissent au vert,
@@ -116,7 +117,11 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
 
 - ❌ **Pas de checkpoints** : rien n'empêche de couper le circuit. Seule la
   largeur de la ligne (±40 studs) est vérifiée au passage.
-- ❌ Pas de records, pas de podium à la fin.
+- ⚠️ **Jamais essayé à plusieurs joueurs** : l'attente du choix des places,
+  les places 2 et 3, le podium à 3 statues.
+- ⚠️ **Les records (DataStore) ne sont pas sauvegardés dans Studio** tant que
+  *Game Settings > Security > Enable Studio Access to API Services* n'est pas
+  coché. Une fois le jeu publié, ça marche.
 - ⚠️ **Pas de bouton « abandonner »** : depuis le 2026-10-03, un pilote qui
   **meurt** est éliminé et ne bloque plus la course. Mais un joueur qui
   **descend** de voiture (touche Espace) sans mourir est toujours attendu :
@@ -135,14 +140,13 @@ vert, `CompteurTours` le remet à `false` à la fin. `Voitures` écoute son
 - ⚠️ **Le script `Piques` est dans `Workspace > Baseplate`** : si je supprime
   le sol, je perds le script.
 
-### La prochaine étape : LES RECORDS
+### La prochaine étape : LES CHECKPOINTS
 
-Le chrono est prêt : `CompteurTours` calcule le temps final officiel
-(`tempsDeCourse()`) au moment où le joueur finit ses 3 tours.
+C'est **obligatoire** dans le cahier des charges : des portes invisibles le
+long du circuit, à passer dans l'ordre ; un tour ne compte que si on les a
+toutes passées (sinon on peut couper).
 
-1. Garder le meilleur temps du serveur, et l'afficher
-2. Le sauvegarder avec `DataStoreService` pour qu'il survive à la fermeture
-3. Puis le podium à la fin de la course
+Ensuite : un essai à plusieurs joueurs, et cocher l'accès aux API dans Studio.
 ---
 
 ## Notions de code déjà vues
@@ -370,6 +374,28 @@ revenues sur la grille. ✅
 | Un spectateur au feu vert | la course l'attendait pour toujours | qui court = qui est assis **au vert** ; les autres sont spectateurs |
 | Mesurer une barrière en biais par son centre | couloir trop large de 2 studs | tester les deux bouts |
 | Laisser un objet sélectionné | le tremplin a été déplacé à la souris | vider la sélection après avoir montré un objet ; Ctrl+Z existe |
+
+### 2026-10-03 (fin) — le spawn, le bouton, les records, les bureaux
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| Un spawn en demi-rond devant la ligne, avec des gradins | plateforme blanche à 43 studs de haut, gradins de 10 rangées **calculés par la ligne de vue**, 477 sièges bleus à dossier, garde-fous en verre, zone de chute mortelle |
+| Murs de verre et toit | les morceaux de verre sont **fondus** (`UnionAsync`) : plus de traits ; toit blanc plein |
+| Les deux carrés → des bâtiments | collés au rond, portes coulissantes futuristes (`PortesCoulissantes`), intérieur néon, fenêtres sur la cour |
+| Un classement des meilleurs temps | `Classement` : `OrderedDataStore`, tableau mis à jour en direct, bandeau « NOUVEAU RECORD ! » |
+| Un bouton pour lancer la course | `DepartCourse` + `ChoixPlace` : on choisit sa place, on attend les autres (30 s max), on est téléporté dans la voiture ; bouton bloqué pendant la course |
+| Après la course | retour au spawn, « ÉLIMINÉ » en rouge ou « 1er — temps » en vert, tableau de la dernière course |
+| Un podium | statues géantes des 3 premiers + confettis (`Podium`) |
+| Minimap | façon Mario Kart, le circuit entier, données envoyées par le serveur (`CarteCircuit`) |
+| Déco du spawn | voiture d'exposition qui tourne, lignes néon, bancs, musique B puis D (`AmbianceSpawn`), jardin, massif le long du verre, mousse derrière le bouton |
+| Des bureaux qui s'occupent de la course | bâtiment de gauche (vu en regardant la piste) : 13 îlots de 4 bureaux, tableau avec le **croquis du circuit dessiné à partir des 187 morceaux de route**, départ en bas |
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Minimap faite côté joueur | seulement 20 morceaux de route sur 187 | **streaming** : le joueur ne reçoit que ce qui est près de lui → demander au serveur |
+| Écran caméra du podium | écran noir | une caméra créée par le serveur n'arrive pas chez le joueur (abandonné) |
+| Croquis tout petit | le circuit est tout en longueur | choisir le sens du dessin (quart de tour) pour remplir le tableau |
+| « Le bâtiment de droite » | je me suis trompé de bâtiment | la droite dépend d'où on regarde : demander ou montrer |
 
 ---
 
