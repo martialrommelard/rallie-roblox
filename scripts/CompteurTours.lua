@@ -30,16 +30,28 @@ local ligne   = circuit:WaitForChild("LigneDepart")
 
 local majTours = ReplicatedStorage:WaitForChild("MajTours")
 
+-- Le temps de chaque tour, envoye a l ecran du joueur. On le cree s il manque.
+local tempsTour = ReplicatedStorage:FindFirstChild("TempsTour")
+if not tempsTour then
+	tempsTour = Instance.new("RemoteEvent")
+	tempsTour.Name = "TempsTour"
+	tempsTour.Parent = ReplicatedStorage
+end
+
 -- Ce que l on retient pour chaque joueur.
 local passages = {}   -- combien de fois il a franchi la ligne
 local cote     = {}   -- de quel cote il etait a l image precedente
 local fini     = {}
+local dernierPassage = {}  -- l heure de son dernier passage sur la ligne
+local meilleurTour   = {}  -- son meilleur tour de la course
 local arrivees = 0    -- combien de joueurs ont deja fini CETTE course (1er, 2eme...)
 
 local function reinitialiser(joueur)
 	passages[joueur] = 0
 	cote[joueur] = nil
 	fini[joueur] = false
+	dernierPassage[joueur] = nil
+	meilleurTour[joueur] = nil
 end
 
 -- Vrai quand plus personne n a de tour a faire. Si la liste est vide
@@ -192,6 +204,18 @@ RunService.Heartbeat:Connect(function()
 			-- Il etait derriere (1), il est devant (-1) : il vient de franchir.
 			if cote[joueur] == 1 and cotePresent == -1 and dansLaLargeur then
 				passages[joueur] += 1
+
+				-- LE TEMPS DU TOUR : de son passage precedent a celui-ci. Au
+				-- 1er passage (juste apres le depart de la grille), il n y a
+				-- pas encore de tour complet : on note seulement l heure.
+				local maintenant = workspace:GetServerTimeNow()
+				if dernierPassage[joueur] then
+					local t = maintenant - dernierPassage[joueur]
+					local record = (meilleurTour[joueur] == nil) or (t < meilleurTour[joueur])
+					if record then meilleurTour[joueur] = t end
+					tempsTour:FireClient(joueur, t, meilleurTour[joueur], record)
+				end
+				dernierPassage[joueur] = maintenant
 
 				if passages[joueur] > NB_TOURS then
 					fini[joueur] = true

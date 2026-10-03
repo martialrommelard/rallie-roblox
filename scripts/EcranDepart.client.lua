@@ -174,3 +174,71 @@ majTours.OnClientEvent:Connect(function(tour, total, fini, temps, rang)
 	valeur.Text = tour .. " / " .. total
 	valeur.TextColor3 = BLANC
 end)
+
+-- ============================================================
+--  LE TEMPS DE CHAQUE TOUR (juste sous le chrono)
+--  A chaque passage de la ligne, le serveur envoie le temps du tour
+--  qui vient de finir, et le meilleur. En VERT quand on bat son
+--  meilleur tour. Etiquette rangee DANS la boite du chrono : elle
+--  disparait avec lui.
+-- ============================================================
+local infoTour = boiteChrono:FindFirstChild("InfoTour")
+if not infoTour then
+	infoTour = Instance.new("TextLabel")
+	infoTour.Name = "InfoTour"
+	infoTour.AnchorPoint = Vector2.new(0.5, 0)
+	infoTour.Position = UDim2.new(0.5, 0, 1, 6)       -- juste sous la boite
+	infoTour.Size = UDim2.new(0, 260, 0, 20)
+	infoTour.BackgroundTransparency = 1
+	infoTour.Font = Enum.Font.GothamBold
+	infoTour.TextSize = 16
+	infoTour.TextStrokeTransparency = 0.4
+	infoTour.TextColor3 = BLANC
+	infoTour.Text = ""
+	infoTour.Parent = boiteChrono
+end
+
+ReplicatedStorage:WaitForChild("TempsTour").OnClientEvent:Connect(function(t, meilleur, record)
+	infoTour.Text = "dernier " .. enTexte(t) .. "   •   meilleur " .. enTexte(meilleur)
+	infoTour.TextColor3 = record and VERT or BLANC
+end)
+
+-- une nouvelle course : on efface les tours de la precedente
+workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
+	if workspace:GetAttribute("CourseEnCours") then
+		infoTour.Text = ""
+	end
+end)
+
+-- ============================================================
+--  NOUVEAU RECORD ! (chez TOUS les joueurs)
+--  Le script Classement l annonce quand un temps bat le 1er du
+--  classement. Une banniere doree en haut de l ecran, 6 secondes.
+-- ============================================================
+local OR = Color3.fromRGB(255, 205, 60)
+local banniere = script.Parent:FindFirstChild("Record")
+if not banniere then
+	banniere = Instance.new("TextLabel")
+	banniere.Name = "Record"
+	banniere.AnchorPoint = Vector2.new(0.5, 0.5)
+	banniere.Position = UDim2.fromScale(0.5, 0.17)
+	banniere.Size = UDim2.fromScale(0.5, 0.09)
+	banniere.BackgroundTransparency = 1
+	banniere.Font = Enum.Font.GothamBlack
+	banniere.TextScaled = true
+	banniere.TextColor3 = OR
+	banniere.TextStrokeTransparency = 0.2
+	banniere.Visible = false
+	banniere.Parent = script.Parent
+end
+
+local numeroRecord = 0
+ReplicatedStorage:WaitForChild("NouveauRecord").OnClientEvent:Connect(function(nom, temps)
+	numeroRecord += 1
+	local n = numeroRecord
+	banniere.Text = "NOUVEAU RECORD !  " .. nom .. "  " .. enTexte(temps)
+	banniere.Visible = true
+	task.delay(6, function()
+		if numeroRecord == n then banniere.Visible = false end
+	end)
+end)

@@ -870,6 +870,61 @@ if TABLEAU then
 		Color3.fromRGB(130, 140, 160)).Text = "en attente du premier temps..."
 end
 
+-- ---- L ECRAN DU PODIUM (2026-10-03) ----
+-- Le podium est sur la montagne : du spawn, le toit le cache. Cet ecran,
+-- de l AUTRE cote du passage (en face du tableau des records), le montre.
+-- Le generateur pose l ecran et une "fenetre 3D" vide (un ViewportFrame) ;
+-- le script Podium y met une COPIE du podium et des statues.
+local ECRAN_PODIUM = true
+if ECRAN_PODIUM and TABLEAU then
+	local a = milieu - TAB_COTE * (PASSAGE / 2 + math.min(xCoin, DEMI_LARGEUR)) / 2
+	local yB = hautY + TAB_BAS
+	local dosEcran = dos - MUR_E / 2
+	local ecran = pave("EcranPodium", a - TAB_L / 2, a + TAB_L / 2, dosEcran - TAB_E, dosEcran,
+		yB, yB + TAB_H, Enum.Material.SmoothPlastic, Color3.fromRGB(18, 22, 30))
+	local f1, f2 = dosEcran - TAB_E - 0.15, dosEcran - TAB_E
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a + TAB_L / 2 + 0.4, f1, f2, yB + TAB_H, yB + TAB_H + 0.4, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a + TAB_L / 2 + 0.4, f1, f2, yB - 0.4, yB, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a - TAB_L / 2 - 0.4, a - TAB_L / 2, f1, f2, yB, yB + TAB_H, Enum.Material.Neon, NEON)
+	pave("CadreNeon", a + TAB_L / 2, a + TAB_L / 2 + 0.4, f1, f2, yB, yB + TAB_H, Enum.Material.Neon, NEON)
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Ecran"
+	gui.Face = (-(sens:Cross(haut))):Dot(versRoute) > 0 and Enum.NormalId.Front or Enum.NormalId.Back
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = ecran
+	local vue = Instance.new("ViewportFrame")
+	vue.Name = "Vue"
+	vue.Size = UDim2.fromScale(1, 1)
+	vue.BackgroundColor3 = Color3.fromRGB(110, 160, 220)      -- un ciel
+	vue.Ambient = Color3.fromRGB(170, 170, 180)
+	vue.LightColor = Color3.fromRGB(255, 250, 240)
+	vue.LightDirection = Vector3.new(-1, -2, -1)
+	vue.Parent = gui
+	local function bandeau(nom, y, h, police)
+		local t = Instance.new("TextLabel")
+		t.Name = nom
+		t.Position = UDim2.fromScale(0, y)
+		t.Size = UDim2.fromScale(1, h)
+		t.BackgroundColor3 = Color3.fromRGB(18, 22, 30)
+		t.BackgroundTransparency = 0.25
+		t.BorderSizePixel = 0
+		t.Font = police
+		t.TextScaled = true
+		t.TextColor3 = NEON
+		t.ZIndex = 2
+		t.Text = ""
+		t.Parent = gui
+		return t
+	end
+	bandeau("Titre", 0, 0.14, Enum.Font.GothamBlack).Text = "PODIUM"
+	local bas = bandeau("Noms", 0.88, 0.12, Enum.Font.GothamBold)
+	bas.TextColor3 = Color3.fromRGB(240, 245, 255)
+	bas.Text = "en attente de la fin d'une course..."
+end
+
 -- ---- LE BOUTON "DEMARRAGE DE LA COURSE" (2026-10-03) ----
 -- Au bout de l arrondi, pres du verre, face a la piste : un socle, un
 -- bouton rouge avec un anneau neon, et DERRIERE le bouton (entre lui et

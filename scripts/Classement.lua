@@ -117,12 +117,29 @@ local function afficher()
 	end
 end
 
+-- ---- LE NOUVEAU RECORD ----
+-- Quand un temps bat le 1er du classement, on l annonce a TOUS les
+-- joueurs (une banniere doree, dans le LocalScript Affichage).
+local nouveauRecord = game:GetService("ReplicatedStorage"):FindFirstChild("NouveauRecord")
+if not nouveauRecord then
+	nouveauRecord = Instance.new("RemoteEvent")
+	nouveauRecord.Name = "NouveauRecord"
+	nouveauRecord.Parent = game:GetService("ReplicatedStorage")
+end
+
 -- ---- ECOUTER LES ARRIVEES ----
 local function suivre(joueur)
 	joueur:GetAttributeChangedSignal("DernierTemps"):Connect(function()
 		local temps = joueur:GetAttribute("DernierTemps")
 		if temps then
+			-- le record AVANT d enregistrer ce temps-ci
+			local liste = meilleurs()
+			local record = liste[1]
 			enregistrer(joueur, temps)
+			if record == nil or math.floor(temps * 1000 + 0.5) < record.ms then
+				nouveauRecord:FireAllClients(joueur.Name, temps)
+				print("NOUVEAU RECORD : " .. joueur.Name .. " en " .. enTexte(temps))
+			end
 			afficher()
 		end
 	end)
