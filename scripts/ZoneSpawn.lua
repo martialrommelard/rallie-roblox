@@ -95,6 +95,34 @@ end
 local ROUGE = Color3.fromRGB(200, 40, 40)
 local BLANC = Color3.fromRGB(235, 235, 235)
 
+-- FONDRE plusieurs morceaux en UN seul objet (l "Union" de Studio).
+-- Pour le verre et tout ce qui est transparent : chaque morceau laisse
+-- voir ses bords, chaque jonction fait un trait. Une fois fondus, il n y
+-- a plus de jonction, donc plus de trait.
+-- Si la fusion echoue, on garde les morceaux tels quels (le jeu marche).
+local function fondre(morceaux, nom, transparence)
+	if #morceaux < 2 then return end
+	local premier = morceaux[1]
+	local autres = {}
+	for i = 2, #morceaux do autres[#autres + 1] = morceaux[i] end
+	local ok, union = pcall(function() return premier:UnionAsync(autres) end)
+	if not ok or not union then
+		warn("Fusion impossible pour " .. nom .. " : " .. tostring(union))
+		return
+	end
+	union.Name = nom
+	union.Anchored = true
+	union.UsePartColor = true
+	union.Color = premier.Color
+	union.Material = premier.Material
+	union.Transparency = transparence
+	union.CastShadow = false
+	-- la collision suit la vraie forme (sinon une "boite" autour bloquerait l interieur)
+	union.CollisionFidelity = Enum.CollisionFidelity.PreciseConvexDecomposition
+	union.Parent = zone
+	for _, p in ipairs(morceaux) do p:Destroy() end
+end
+
 -- ---- LE SOL ----
 -- Un eventail de NB parts. Chacune couvre le triangle (centre, bord a1,
 -- bord a2) : un rectangle dont le bout est la corde entre les deux points
@@ -135,6 +163,65 @@ if GARDE_CORPS then
 			CFrame.lookAt(m, m + (p2 - p1)), Enum.Material.SmoothPlastic,
 			(k % 2 == 0) and ROUGE or BLANC)
 	end
+end
+
+-- ---- LES MURS DE VERRE TOUT AUTOUR DU ROND (2026-10-03) ----
+-- Tout l arrondi, sans ouverture, et le cote plat, avec juste un passage
+-- au milieu vers le palier et les escaliers.
+-- "Propre et lisse" : deux fois plus de morceaux que le sol, coupes PILE
+-- a la bonne longueur (les morceaux qui se chevauchaient faisaient des
+-- traits plus fonces dans le verre), et du plastique lisse transparent
+-- plutot que la matiere "Glass", qui deforme et fait ressortir les joints.
+local MURS       = true
+local MUR_H      = 16      -- hauteur des murs au-dessus de la plateforme
+local MUR_E      = 0.5     -- epaisseur du verre
+local TRANSP_MUR = 0.6     -- 0 = opaque, 1 = invisible
+local NB_MUR     = 2 * NB  -- nombre de morceaux de l arrondi
+local PASSAGE    = 20      -- le passage dans le mur du cote plat, vers le palier
+local VERRE      = Color3.fromRGB(205, 230, 255)
+-- On ne construit PAS les murs ici : il faut d abord savoir ou sont les
+-- ailes (plus bas), car le verre s arrete contre elles. On ecrit donc
+-- une fonction, et on l appelle plus loin, une fois les ailes placees.
+--   xMax   : le verre du cote plat s arrete a xMax du milieu ;
+--   latMax : on ne met pas de verre plus loin que latMax de l axe de la
+--            route (ce morceau d arrondi est dans une aile).
+local function construireMurs(xMax, latMax)
+	local vitres = {}
+	local function vitreMur(taille, cf)
+		local p = bloc(zone, "MurVerre", taille, cf, Enum.Material.SmoothPlastic, VERRE)
+		p.Transparency = TRANSP_MUR
+		p.CastShadow = false
+		vitres[#vitres + 1] = p
+	end
+	-- 1. l arrondi
+	local function morceau(p1, p2)
+		local c = (p1 + p2) / 2 + Vector3.new(0, MUR_H / 2, 0)
+		vitreMur(Vector3.new(MUR_E, MUR_H, (p2 - p1).Magnitude + 0.05), CFrame.lookAt(c, c + (p2 - p1)))
+	end
+	local function lat(p) return (p - ligne.Position):Dot(cote) end
+	for k = 1, NB_MUR do
+		local p1, p2 = bord(math.pi * (k - 1) / NB_MUR), bord(math.pi * k / NB_MUR)
+		local l1, l2 = lat(p1), lat(p2)
+		if l1 <= latMax and l2 <= latMax then
+			morceau(p1, p2)
+		elseif l1 <= latMax or l2 <= latMax then
+			-- ce morceau traverse la limite de l aile : on le COUPE pile la
+			-- ou il la croise (sinon il manquait un morceau : un trou entre
+			-- le verre et le batiment)
+			local pin, pout = p1, p2
+			if l2 <= latMax then pin, pout = p2, p1 end
+			local t = (latMax - lat(pin)) / (lat(pout) - lat(pin))
+			morceau(pin, pin + (pout - pin) * t)
+		end
+	end
+	-- 2. le cote plat, de chaque cote du passage
+	for _, s in ipairs({-1, 1}) do
+		local x1, x2 = s * PASSAGE / 2, s * xMax
+		local c = centre + sens * ((x1 + x2) / 2) + Vector3.new(0, MUR_H / 2, 0)
+		vitreMur(Vector3.new(math.abs(x2 - x1), MUR_H, MUR_E), CFrame.fromMatrix(c, sens, Vector3.new(0, 1, 0)))
+	end
+	-- 3. on fond tous les morceaux en un seul mur : plus aucun trait
+	fondre(vitres, "MurVerre", TRANSP_MUR)
 end
 
 -- ---- LES ARBRES QUI GENENT ----
@@ -438,6 +525,275 @@ if decor then
 			end
 		end
 	end
+end
+
+-- ---- LES DEUX AILES (les "carres" poses a la main, 2026-10-03) ----
+-- Deux blocs blancs de chaque cote du rond, le dessus au niveau du sol du
+-- spawn : on passe de l un a l autre a plat. Ils sont colles :
+--   - par l arriere, au devant des gradins ;
+--   - sur le cote, au rond : on CALCULE ou passe l arrondi a la hauteur
+--     du devant de l aile, et l aile commence la. Son coin avant touche
+--     pile l arrondi, sans trou.
+--          ┌───────┐╱‾‾‾‾‾╲┌───────┐
+--          │ aile  │ spawn │ aile  │
+--          └───────┴───────┴───────┘
+--          ███████ gradins ████████
+-- Ce sont des BATIMENTS (2026-10-03 : "il faut de la hauteur pour
+-- rentrer") : sur le bloc, une salle de AILE_H studs de haut, 4 murs
+-- blancs et un toit, et une porte dans le mur cote spawn.
+local AILES     = true
+local AILE_LONG = 113    -- le long de la piste (comme les carres poses a la main)
+local AILE_PROF = 66     -- profondeur
+local AILE_H    = 20     -- hauteur de la salle, au-dessus du sol du spawn
+local AILE_MUR  = 1      -- epaisseur des murs
+local PORTE_L   = 12     -- largeur de la porte (cote spawn)
+local PORTE_H   = 10     -- hauteur de la porte
+local BLEU_PORTE   = Color3.fromRGB(120, 200, 255)   -- le verre des portes coulissantes
+local TRANSP_PORTE = 0.35
+local NEON         = Color3.fromRGB(0, 225, 255)     -- liseres et cadres, style futuriste
+-- l interieur des batiments
+local GRIS_INTERIEUR = Color3.fromRGB(42, 46, 56)    -- le sol, gris fonce brillant
+local BLANC_LUMIERE  = Color3.fromRGB(240, 246, 255) -- les panneaux du plafond
+local DECO_SOL       = 0.06   -- epaisseur du revetement (assez mince pour la porte)
+local BORD_SOL       = 0.4    -- largeur de la bordure neon du sol
+local ECART_BANDES   = 16     -- une bande neon verticale tous les ~16 studs
+local MONTANT        = 1      -- largeur des montants blancs entre les fenetres
+
+-- Sans ailes, le verre fait tout le tour du rond.
+local xCoin, devantAile = DEMI_LARGEUR, math.huge
+if AILES then
+	devantAile = avant - AILE_PROF                  -- le devant des ailes, depuis l axe
+	local profRond = dos - devantAile               -- a quelle profondeur du rond ca tombe
+	-- l ellipse du rond : a la profondeur p, elle est a x = A * racine(1 - (p/B)^2) du milieu
+	xCoin = DEMI_LARGEUR * math.sqrt(math.max(0, 1 - (profRond / PROFONDEUR) ^ 2))
+end
+
+-- Les murs de verre du rond : ils s arretent contre les ailes.
+if MURS then
+	construireMurs(xCoin, devantAile)
+end
+
+if AILES then
+	local y0, y1 = hautY, hautY + AILE_H
+	for _, s in ipairs({-1, 1}) do
+		local aIn, aOut = milieu + s * xCoin, milieu + s * (xCoin + AILE_LONG)
+		-- le bloc (le plancher du batiment). 0.01 stud sous le sol du spawn :
+		-- la ou les deux se chevauchent, ils ne clignotent pas.
+		pave("Aile", aIn, aOut, devantAile, avant, solY, hautY - 0.01, MATIERE_SOL, COULEUR_SOL)
+		-- les murs : derriere (cote gradins), cote exterieur. Le mur de DEVANT
+		-- (cote cour et piste) a des fenetres : il est construit plus bas,
+		-- avec la decoration interieure dont il suit les lignes.
+		pave("AileMur", aIn, aOut, avant - AILE_MUR, avant, y0, y1, MATIERE_SOL, COULEUR_SOL)
+		pave("AileMur", aOut - s * AILE_MUR, aOut, devantAile, avant, y0, y1, MATIERE_SOL, COULEUR_SOL)
+		-- le mur cote spawn, avec la porte au milieu de la partie qui donne
+		-- sur le spawn (entre le devant de l aile et le dos du rond)
+		local pMilieu = (devantAile + dos) / 2
+		local p1, p2 = pMilieu - PORTE_L / 2, pMilieu + PORTE_L / 2
+		local aMur = aIn + s * AILE_MUR
+		pave("AileMur", aIn, aMur, devantAile, p1, y0, y1, MATIERE_SOL, COULEUR_SOL)
+		pave("AileMur", aIn, aMur, p2, avant, y0, y1, MATIERE_SOL, COULEUR_SOL)
+		pave("AileMur", aIn, aMur, p1, p2, y0 + PORTE_H, y1, MATIERE_SOL, COULEUR_SOL)
+		-- le toit
+		pave("AileToit", aIn, aOut, devantAile, avant, y1, y1 + 1, MATIERE_SOL, COULEUR_SOL)
+
+		-- LA PORTE COULISSANTE (style futuriste) : deux panneaux de verre
+		-- bleute qui s ecartent et rentrent dans le mur. Le generateur note
+		-- sur chaque piece qui bouge sa position "Ferme" et "Ouvert" (des
+		-- attributs) : le script PortesCoulissantes n a plus qu a les faire
+		-- glisser de l une a l autre quand un joueur approche.
+		local porte = Instance.new("Model")
+		porte.Name = "PorteCoulissante"
+		local aC = aIn + s * AILE_MUR / 2                  -- au milieu de l epaisseur du mur
+		for _, cp in ipairs({-1, 1}) do                    -- -1 : panneau cote route, 1 : cote gradins
+			local l1, l2 = (cp < 0) and p1 or pMilieu, (cp < 0) and pMilieu or p2
+			local panneau = pave("Panneau", aC - 0.2, aC + 0.2, l1, l2, y0, y0 + PORTE_H,
+				Enum.Material.Glass, BLEU_PORTE)
+			panneau.Transparency = TRANSP_PORTE
+			-- le lisere neon, sur le bord ou les deux panneaux se rejoignent
+			local neon = pave("Lisere", aC - 0.25, aC + 0.25, pMilieu + cp * 0.3, pMilieu,
+				y0, y0 + PORTE_H, Enum.Material.Neon, NEON)
+			for _, piece in ipairs({panneau, neon}) do
+				piece:SetAttribute("Ferme", piece.CFrame)
+				-- ouvert : decale de la moitie de la porte, dans le mur
+				piece:SetAttribute("Ouvert", piece.CFrame + cote * (cp * PORTE_L / 2))
+				piece.Parent = porte
+			end
+		end
+		porte:SetAttribute("Centre", origine + sens * aC + cote * pMilieu + haut * (y0 + PORTE_H / 2))
+		porte.Parent = zone
+		-- le cadre neon, des deux cotes du mur (il ne bouge pas)
+		for _, face in ipairs({aIn - s * 0.15, aMur + s * 0.15}) do
+			local f1 = (face == aIn - s * 0.15) and aIn or aMur
+			pave("CadreNeon", face, f1, p1 - 0.5, p2 + 0.5, y0 + PORTE_H, y0 + PORTE_H + 0.5,
+				Enum.Material.Neon, NEON)
+			pave("CadreNeon", face, f1, p1 - 0.5, p1, y0, y0 + PORTE_H, Enum.Material.Neon, NEON)
+			pave("CadreNeon", face, f1, p2, p2 + 0.5, y0, y0 + PORTE_H, Enum.Material.Neon, NEON)
+		end
+
+		-- L INTERIEUR, meme style que la porte (2026-10-03) :
+		--   ┌──────────────────────────────┐ <- corniche neon (en haut)
+		--   │ ▕     ▕     ▕     ▕     ▕     │ <- bandes neon verticales
+		--   └──────────────────────────────┘ <- plinthe neon (en bas)
+		--   sol gris fonce brillant, bordure neon ; plafond : panneaux lumineux
+		-- Les limites de la salle, a l interieur des murs :
+		local i1, i2 = aMur, aOut - s * AILE_MUR             -- le long de la piste
+		local j1, j2 = devantAile + AILE_MUR, avant - AILE_MUR -- depuis l axe
+		local iMin, iMax = math.min(i1, i2), math.max(i1, i2)
+		local yS = y0 + DECO_SOL                             -- le dessus du revetement
+
+		-- le sol : revetement brillant, et la bordure neon tout autour
+		local sol = pave("SolInterieur", iMin + BORD_SOL, iMax - BORD_SOL, j1 + BORD_SOL, j2 - BORD_SOL,
+			y0, yS, Enum.Material.SmoothPlastic, GRIS_INTERIEUR)
+		sol.Reflectance = 0.15
+		pave("BordureNeon", iMin, iMax, j1, j1 + BORD_SOL, y0, yS, Enum.Material.Neon, NEON)
+		pave("BordureNeon", iMin, iMax, j2 - BORD_SOL, j2, y0, yS, Enum.Material.Neon, NEON)
+		pave("BordureNeon", iMin, iMin + BORD_SOL, j1 + BORD_SOL, j2 - BORD_SOL, y0, yS, Enum.Material.Neon, NEON)
+		pave("BordureNeon", iMax - BORD_SOL, iMax, j1 + BORD_SOL, j2 - BORD_SOL, y0, yS, Enum.Material.Neon, NEON)
+
+		-- plinthe (en bas) et corniche (en haut), le long des 4 murs
+		for _, h in ipairs({{yS + 0.3, yS + 0.7}, {y1 - 0.9, y1 - 0.5}}) do
+			local ya, yb = h[1], h[2]
+			pave("LigneNeon", iMin, iMax, j1, j1 + 0.15, ya, yb, Enum.Material.Neon, NEON)   -- mur avant
+			pave("LigneNeon", iMin, iMax, j2 - 0.15, j2, ya, yb, Enum.Material.Neon, NEON)   -- mur arriere
+			pave("LigneNeon", i2, i2 - s * 0.15, j1, j2, ya, yb, Enum.Material.Neon, NEON)   -- mur du fond
+			-- mur de la porte : on laisse la porte (et son cadre) libre
+			pave("LigneNeon", i1, i1 + s * 0.15, j1, p1 - 0.5, ya, yb, Enum.Material.Neon, NEON)
+			pave("LigneNeon", i1, i1 + s * 0.15, p2 + 0.5, j2, ya, yb, Enum.Material.Neon, NEON)
+		end
+
+		-- bandes verticales sur les deux grands murs (avant et arriere)
+		local nbBandes = math.floor((iMax - iMin) / ECART_BANDES)
+		local bandes = {}
+		for b = 1, nbBandes do
+			local a = iMin + (iMax - iMin) * b / (nbBandes + 1)
+			bandes[b] = a
+			for _, j in ipairs({{j1, j1 + 0.15}, {j2 - 0.15, j2}}) do
+				pave("BandeNeon", a - 0.15, a + 0.15, j[1], j[2], yS + 0.7, y1 - 0.9, Enum.Material.Neon, NEON)
+			end
+		end
+
+		-- LE MUR DE DEVANT, AVEC SES FENETRES (2026-10-03 : "les carres
+		-- deviennent des vitres pour voir la cour, mais on garde les traits
+		-- bleus"). Les lignes neon dessinent des rectangles : chacun devient
+		-- une vitre, les lignes restent comme cadre.
+		--   ████████████████████████  <- mur plein (au-dessus de la corniche)
+		--   █ ░░░░ █ ░░░░ █ ░░░░ █ █  <- vitres entre les montants des bandes
+		--   ████████████████████████  <- mur plein (sous la plinthe)
+		local m1, m2 = devantAile, devantAile + AILE_MUR
+		local yBas, yHaut = yS + 0.7, y1 - 0.9                    -- la fenetre, entre plinthe et corniche
+		pave("AileMur", aIn, aOut, m1, m2, y0, yBas, MATIERE_SOL, COULEUR_SOL)     -- en bas
+		pave("AileMur", aIn, aOut, m1, m2, yHaut, y1, MATIERE_SOL, COULEUR_SOL)    -- en haut
+		-- les coins (dans l epaisseur des murs de cote)
+		pave("AileMur", math.min(aIn, aOut), iMin, m1, m2, yBas, yHaut, MATIERE_SOL, COULEUR_SOL)
+		pave("AileMur", iMax, math.max(aIn, aOut), m1, m2, yBas, yHaut, MATIERE_SOL, COULEUR_SOL)
+		-- les montants (sous chaque bande) et les vitres entre eux
+		local bords = {iMin}
+		for _, a in ipairs(bandes) do bords[#bords + 1] = a end
+		bords[#bords + 1] = iMax
+		for k = 1, #bords - 1 do
+			local debut = bords[k] + ((k > 1) and MONTANT / 2 or 0)
+			local fin = bords[k + 1] - ((k + 1 < #bords) and MONTANT / 2 or 0)
+			local vitre = pave("Fenetre", debut, fin, m1 + 0.3, m2 - 0.3, yBas, yHaut,
+				Enum.Material.SmoothPlastic, VERRE)
+			vitre.Transparency = TRANSP_MUR
+			vitre.CastShadow = false
+		end
+		for _, a in ipairs(bandes) do
+			pave("AileMur", a - MONTANT / 2, a + MONTANT / 2, m1, m2, yBas, yHaut, MATIERE_SOL, COULEUR_SOL)
+		end
+
+		-- le plafond : des panneaux lumineux blancs, qui eclairent vers le bas
+		local nbA = math.floor((iMax - iMin) / 22)
+		local nbJ = 3
+		for u = 1, nbA do
+			for v = 1, nbJ do
+				local a = iMin + (iMax - iMin) * u / (nbA + 1)
+				local j = j1 + (j2 - j1) * v / (nbJ + 1)
+				local panneau = pave("Lumiere", a - 7, a + 7, j - 2, j + 2, y1 - 0.3, y1,
+					Enum.Material.Neon, BLANC_LUMIERE)
+				local lampe = Instance.new("SurfaceLight")
+				lampe.Face = Enum.NormalId.Bottom             -- elle eclaire vers le sol
+				lampe.Brightness = 1.2
+				lampe.Range = 22
+				lampe.Color = BLANC_LUMIERE
+				lampe.Parent = panneau
+			end
+		end
+	end
+	print(string.format("Ailes : batiments de %d x %d x %d studs, colles au rond a %.1f studs du milieu, porte de %d x %d",
+		AILE_LONG, AILE_PROF, AILE_H, xCoin, PORTE_L, PORTE_H))
+end
+
+-- ---- LE TOIT BLANC (2026-10-03) ----
+-- Il pose sur les murs et couvre tout le rond, en deux parties :
+--   - l ARRIERE, blanc plein ;
+--   - l AVANT, blanc translucide (comme du verre depoli) : un toit opaque
+--     a cet endroit cacherait la route aux gradins (verifie par le calcul).
+-- La limite entre les deux n est PAS choisie au hasard : on reprend la
+-- ligne de vue de la 1re rangee de bancs (celle qui a le moins de marge)
+-- et le blanc plein s arrete juste avant de couper cette ligne.
+local TOIT         = true
+local TOIT_E       = 1       -- epaisseur du toit
+local TOIT_MARGE   = 2       -- studs de marge avant la ligne de vue
+local BANDE        = 1       -- largeur des bandes qui suivent l arrondi
+local TRANSP_AVANT = 0       -- l avant du toit : 0 = blanc plein (cache la route), 1 = invisible
+if TOIT and MURS then
+	local yToit = hautY + MUR_H + TOIT_E
+	-- La ligne de vue part des yeux de la 1re rangee (assis1, yeux1) et va
+	-- au bord de la route (demiRoute, routeY). A quelle distance de l axe
+	-- passe-t-elle a la hauteur du dessus du toit ?
+	local passe = demiRoute + (yToit - routeY) * (assis1 - demiRoute) / (yeux1 - routeY)
+	local profToit = math.min(PROFONDEUR, dos - passe - TOIT_MARGE)
+	-- la profondeur de l arrondi a la distance x du milieu
+	local function profArrondi(x)
+		return PROFONDEUR * math.sqrt(math.max(0, 1 - (x / DEMI_LARGEUR) ^ 2))
+	end
+	-- le toit du rond s arrete contre les ailes (xCoin), comme le verre
+	local xBout = math.min(DEMI_LARGEUR, xCoin)
+	local xPlein = math.min(xBout, DEMI_LARGEUR * math.sqrt(math.max(0, 1 - (profToit / PROFONDEUR) ^ 2)))
+
+	-- 1. L ARRIERE, blanc plein. Au milieu, la ou l arrondi est plus profond
+	-- que cette partie : un grand rectangle. Aux deux bouts : des bandes qui
+	-- suivent l arrondi (sa profondeur au bord EXTERIEUR de la bande : le
+	-- toit ne depasse jamais des murs).
+	local arriere = {}
+	arriere[1] = pave("Toit", milieu - xPlein, milieu + xPlein, dos - profToit, dos,
+		yToit - TOIT_E, yToit, MATIERE_SOL, COULEUR_SOL)
+	for _, s in ipairs({-1, 1}) do
+		local x = xPlein
+		while x < xBout do
+			local x2 = math.min(x + BANDE, xBout)
+			local prof = profArrondi(x2)
+			if prof > 0.2 then
+				arriere[#arriere + 1] = pave("Toit", milieu + s * x, milieu + s * x2, dos - prof, dos,
+					yToit - TOIT_E, yToit, MATIERE_SOL, COULEUR_SOL)
+			end
+			x = x2
+		end
+	end
+	fondre(arriere, "Toit", 0)
+
+	-- 2. L AVANT, blanc translucide : des bandes de profToit jusqu a l arrondi.
+	local devantToit = {}
+	for _, s in ipairs({-1, 1}) do
+		local x = 0
+		while x < xPlein do
+			local x2 = math.min(x + BANDE, xPlein)
+			local prof = profArrondi(x2)
+			if prof > profToit + 0.2 then
+				local p = pave("ToitAvant", milieu + s * x, milieu + s * x2, dos - prof, dos - profToit,
+					yToit - TOIT_E, yToit, MATIERE_SOL, COULEUR_SOL)
+				p.Transparency = TRANSP_AVANT
+				p.CastShadow = false
+				devantToit[#devantToit + 1] = p
+			end
+			x = x2
+		end
+	end
+	fondre(devantToit, "ToitAvant", TRANSP_AVANT)
+
+	print(string.format("Toit : blanc plein sur %.0f studs de profondeur, translucide sur les %.0f de devant, a Y = %.1f",
+		profToit, PROFONDEUR - profToit, yToit))
 end
 
 -- ---- LE POINT D APPARITION ----
