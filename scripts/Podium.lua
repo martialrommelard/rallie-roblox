@@ -69,6 +69,78 @@ local function dessusDe(m)
 	return haut
 end
 
+-- ---- LA CAMERA SUR LA MONTAGNE (2026-10-03) ----
+-- Une vraie camera, visible, qui "filme" le podium : c est ce qu elle
+-- voit qui s affiche sur l ecran du spawn. Le point de vue est en l air,
+-- au-dessus du vide devant la terrasse : on la met donc au bout d une
+-- GRUE, comme a la tele. Le mat est plante la ou le sol de la terrasse
+-- s arrete (on le cherche en tirant des rayons vers le bas).
+--
+--        camera ■▶────────┐  <- le bras, au-dessus du vide
+--                         │  <- le mat
+--    podium ▟█▙   terrasse┘
+local CAM_DIST = 110     -- distance entre la camera et le podium
+local CAM_HAUT = 20      -- hauteur de la camera au-dessus de la plus haute marche
+local GRIS_CAM = Color3.fromRGB(35, 37, 42)
+
+local cameraCF = nil     -- ou regarde la camera (calcule une seule fois)
+local function poserCamera()
+	if cameraCF then return cameraCF end
+	local m1 = marche(1)
+	if not m1 then return nil end
+	local spawn = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
+	local face = Vector3.new(0, 0, 1)
+	if spawn then
+		local d = spawn.Position - m1.Position
+		face = Vector3.new(d.X, 0, d.Z).Unit
+	end
+	local vise = Vector3.new(m1.Position.X, dessusDe(m1) + 15, m1.Position.Z)
+	local cam = Vector3.new(m1.Position.X, dessusDe(m1) + CAM_HAUT, m1.Position.Z) + face * CAM_DIST
+
+	-- ou s arrete la terrasse ? On avance vers la camera, et on regarde
+	-- s il y a encore du sol en dessous (pas plus de 40 studs plus bas).
+	local rayon = RaycastParams.new()
+	rayon.FilterType = Enum.RaycastFilterType.Exclude
+	rayon.FilterDescendantsInstances = {statues}
+	local pied = nil
+	for d = 20, CAM_DIST, 2 do
+		local p = Vector3.new(m1.Position.X, dessusDe(m1), m1.Position.Z) + face * d
+		local hit = workspace:Raycast(p + Vector3.new(0, 5, 0), Vector3.new(0, -45, 0), rayon)
+		if hit then pied = hit.Position else break end
+	end
+	pied = pied or (cam - Vector3.new(0, 30, 0))
+
+	local ancien = workspace:FindFirstChild("CameraDirect")
+	if ancien then ancien:Destroy() end
+	local modele = Instance.new("Model")
+	modele.Name = "CameraDirect"
+	local function piece(nom, taille, cf, couleur, matiere)
+		local p = Instance.new("Part")
+		p.Name, p.Size, p.CFrame = nom, taille, cf
+		p.Anchored = true
+		p.Color = couleur
+		p.Material = matiere or Enum.Material.Metal
+		p.Parent = modele
+		return p
+	end
+	-- le mat (vertical) et le bras (horizontal, jusqu a la camera)
+	local hautMat = Vector3.new(pied.X, cam.Y, pied.Z)
+	piece("Mat", Vector3.new(1.6, cam.Y - pied.Y, 1.6), CFrame.new((pied + hautMat) / 2), GRIS_CAM)
+	local bras = cam - hautMat
+	piece("Bras", Vector3.new(1.2, 1.2, bras.Magnitude), CFrame.lookAt((hautMat + cam) / 2, cam), GRIS_CAM)
+	-- la camera : un boitier, un objectif, un voyant rouge
+	cameraCF = CFrame.lookAt(cam, vise)
+	piece("Boitier", Vector3.new(4, 3.2, 6), cameraCF * CFrame.new(0, 1.2, 1.5), GRIS_CAM)
+	local objectif = piece("Objectif", Vector3.new(2.6, 2.2, 2.2),
+		cameraCF * CFrame.new(0, 1.2, -2.6) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(15, 15, 18))
+	objectif.Shape = Enum.PartType.Cylinder
+	local voyant = piece("Voyant", Vector3.new(0.7, 0.7, 0.7), cameraCF * CFrame.new(1.3, 3.1, 0), Color3.fromRGB(255, 40, 40),
+		Enum.Material.Neon)
+	voyant.Shape = Enum.PartType.Ball
+	modele.Parent = workspace
+	return cameraCF
+end
+
 -- ---- UNE STATUE A L IMAGE D UN JOUEUR ----
 -- 1er essai : on demande a Roblox l avatar du joueur (debout, bien droit).
 -- Sinon : une copie de son personnage.
@@ -104,6 +176,9 @@ local function creerStatue(joueur)
 		humanoide.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
 	modele.Name = "Statue_" .. joueur.Name
+	-- toujours envoyee a tous les joueurs (streaming) : on doit la voir de
+	-- loin, depuis la piste et les gradins, pas seulement de pres
+	modele.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	return modele
 end
 
@@ -207,11 +282,22 @@ local function majEcran(noms)
 	if not (vue and m1) then return end
 
 	vue:ClearAllChildren()
+	-- Tout va dans un WorldModel : un "mini-monde" dans la fenetre. Sans
+	-- lui, un personnage (Humanoid) s affiche mal ou pas du tout dans une
+	-- fenetre 3D : ses vetements et accessoires ne sont pas montes.
+	local monde = Instance.new("WorldModel")
+	monde.Name = "Monde"
+	-- STREAMING : Roblox n envoie a un joueur que les pieces PROCHES de
+	-- lui. Ce mini-monde "est" au podium, a 625 studs du spawn : sans ca,
+	-- l ecran recevait la statue... vide (0 piece). Persistent = toujours
+	-- envoye a tout le monde.
+	monde.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	monde.Parent = vue
 	for _, p in ipairs(podium:GetChildren()) do
-		if p:IsA("BasePart") and p.Name ~= "Panneau" then p:Clone().Parent = vue end
+		if p:IsA("BasePart") and p.Name ~= "Panneau" then p:Clone().Parent = monde end
 	end
 	for _, s in ipairs(statues:GetChildren()) do
-		if s:IsA("Model") then s:Clone().Parent = vue end
+		if s:IsA("Model") then s:Clone().Parent = monde end
 	end
 	-- LE PAYSAGE AUTOUR (2026-10-03) : pour que l ecran ressemble a une
 	-- vraie camera, et pas a un podium qui flotte dans le vide, on copie
@@ -224,7 +310,7 @@ local function majEcran(noms)
 		if dossier then
 			for _, p in ipairs(dossier:GetChildren()) do
 				if p:IsA("BasePart") and (p.Position - m1.Position).Magnitude < RAYON_DECOR then
-					p:Clone().Parent = vue
+					p:Clone().Parent = monde
 				end
 			end
 		end
@@ -245,19 +331,12 @@ local function majEcran(noms)
 		t.Parent = gui
 	end
 
-	-- la camera : devant le podium, du cote du spawn, un peu en hauteur
-	local spawn = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
-	local face = Vector3.new(0, 0, 1)
-	if spawn then
-		local d = spawn.Position - m1.Position
-		face = Vector3.new(d.X, 0, d.Z).Unit
-	end
-	local vise = Vector3.new(m1.Position.X, dessusDe(m1) + 10, m1.Position.Z)
+	-- le point de vue : celui de la camera posee sur la montagne.
 	-- ATTENTION : une Camera creee ICI (sur le serveur) n arrive PAS chez
 	-- les joueurs, et sans camera la fenetre 3D reste NOIRE. On note donc
 	-- seulement ou la mettre ; le LocalScript CameraPodium la cree chez
 	-- chaque joueur.
-	vue:SetAttribute("Camera", CFrame.lookAt(vise + face * 175 + Vector3.new(0, 25, 0), vise))
+	vue:SetAttribute("Camera", poserCamera())
 	vue:SetAttribute("Champ", 50)
 
 	gui.Noms.Text = noms or "en attente de la fin d'une course..."
