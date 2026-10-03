@@ -724,40 +724,41 @@ if AILES then
 		AILE_LONG, AILE_PROF, AILE_H, xCoin, PORTE_L, PORTE_H))
 end
 
--- ---- LES BUREAUX DE LA DIRECTION DE COURSE (batiment de droite, 2026-10-03) ----
--- Le batiment de DROITE (pour un joueur dans le spawn qui regarde la piste)
--- devient les bureaux de ceux qui s occupent de la course :
+-- ---- LES BUREAUX DE LA DIRECTION DE COURSE (2026-10-03) ----
+-- Un des deux batiments (celui que l eleve a choisi : "c est l autre",
+-- BUREAUX_COTE plus bas) devient les bureaux de ceux qui s occupent de la course :
 --   - au FOND (le mur en face de la porte), un grand tableau blanc avec le
 --     CROQUIS DU CIRCUIT. Il n est pas dessine a la main : chaque morceau de
 --     route est reporte en petit sur le tableau, comme la minimap ;
---   - devant le tableau, des rangees de postes (bureau, deux ecrans, une
---     chaise sur laquelle on peut s asseoir), tournes vers le tableau ;
---   - plus pres de la porte, une table de reunion ;
+--   - dans TOUTE la salle, des ILOTS : 4 bureaux colles, face a face deux
+--     par deux, une petite cloison au milieu, un ecran et une chaise (on
+--     peut s y asseoir) par bureau. Les ilots sont en quinconce, et un sur
+--     deux est tourne d un quart de tour : ca fait vivant, pas une salle de classe ;
 --   - des plantes dans les coins, et une enseigne au-dessus de la porte.
---      ┌───────────────── tableau ─────────────────┐  <- le fond
---      │   ▭▭  ▭▭  ▭▭  ▭▭     <- postes (rangee 1)  │
---      │   ▭▭  ▭▭  ▭▭  ▭▭     <- rangee 2           │
---      │   ▭▭  ▭▭  ▭▭  ▭▭     <- rangee 3           │
---      │        ╔══════╗      <- table de reunion   │
---      └──────────── porte (cote spawn) ────────────┘
+--      ┌────────────── tableau ──────────────┐  <- le fond
+--      │   ╬      ═╪═      ╬                  │
+--      │      ═╪═      ╬      ═╪═             │  <- les ilots, en quinconce
+--      │   ╬      ═╪═      ╬                  │
+--      │      ═╪═      ╬      ═╪═             │
+--      └─────────── porte (cote spawn) ──────┘
 local BUREAUX      = true
+local BUREAUX_COTE = -1      -- 1 ou -1 : le batiment (de quel cote du rond, le long de la piste)
 local CROQUIS_L    = 30      -- largeur du tableau du fond
 local CROQUIS_H    = 15      -- sa hauteur
 local CROQUIS_BAS  = 2.5     -- hauteur du bas du tableau au-dessus du sol
-local RANG_1       = 18      -- la 1re rangee de postes, a 18 studs du tableau
-local ECART_RANGS  = 10
-local NB_RANGS_B   = 3
-local NB_POSTES    = 4       -- postes par rangee
-local ECART_POSTES = 11
-local TABLE_REU    = 70      -- la table de reunion, a 70 studs du tableau
+local ILOT_BUREAU  = 5.5     -- largeur d un bureau (un ilot = 2 x 2 bureaux)
+local ILOT_PREMIER = 16      -- la 1re rangee d ilots, a 16 studs du tableau
+local ILOT_ECART_D = 19      -- d une rangee a l autre (le long de la salle)
+local ILOT_ECART_J = 21      -- d un ilot a l autre dans une rangee
 local BLANC_MEUBLE = Color3.fromRGB(235, 237, 242)
 local GRIS_FONCE   = Color3.fromRGB(28, 31, 38)
 local FEUTRE       = Color3.fromRGB(25, 30, 45)      -- le trait du croquis (un feutre noir)
 local ROUGE_FEUTRE = Color3.fromRGB(215, 40, 45)
 if BUREAUX and AILES then
-	-- la droite, pour un joueur dans le spawn qui regarde la piste
+	-- le batiment : du cote BUREAUX_COTE (on regarde ou est la droite d un
+	-- joueur qui regarde la piste, pour que 1 = ce batiment-la)
 	local versPiste = -cote
-	local s = (sens:Dot(versPiste:Cross(haut)) > 0) and 1 or -1
+	local s = ((sens:Dot(versPiste:Cross(haut)) > 0) and 1 or -1) * BUREAUX_COTE
 	local aIn = milieu + s * xCoin                       -- le mur de la porte (dehors)
 	local i1  = aIn + s * AILE_MUR                       -- le mur de la porte (dedans)
 	local i2  = milieu + s * (xCoin + AILE_LONG - AILE_MUR) -- le mur du fond (dedans)
@@ -900,10 +901,16 @@ if BUREAUX and AILES then
 	etiquette("TexteCroquis", "CROQUIS DU CIRCUIT", pt(duFond(0.63), jM, yT + CROQUIS_H - 1), versSalle,
 		CROQUIS_L * 0.6, 1.4, FEUTRE)
 
-	-- 2. LES POSTES : bureau, deux ecrans, une chaise -------------
+	-- 2. LES ILOTS ---------------------------------------------------
+	--     chaise   chaise
+	--    [bureau][bureau]
+	--    ═══ cloison ════     <- petite cloison blanche, liseree de neon
+	--    [bureau][bureau]
+	--     chaise   chaise
 	local TEXTES_ECRAN = {"CHRONO", "CAMÉRA 1", "CAMÉRA 2", "TOURS", "MÉTÉO : SOLEIL", "PISTE OK", "RADIO",
 		"CLASSEMENT", "TREMPLIN", "TUNNEL", "VOITURES : 6", "DRAPEAU VERT"}
 	local numEcran = 0
+	-- une chaise posee en "pos" (au sol), tournee vers "versOu"
 	local function chaise(pos, versOu)
 		local cf = CFrame.lookAt(pos, pos + versOu)
 		local assise = Instance.new("Seat")
@@ -919,67 +926,73 @@ if BUREAUX and AILES then
 		piece("PiedChaise", Vector3.new(0.4, 1.6, 0.4), cf * CFrame.new(0, 0.85, 0), Color3.fromRGB(90, 90, 95))
 		piece("BaseChaise", Vector3.new(1.8, 0.2, 1.8), cf * CFrame.new(0, 0.1, 0), Color3.fromRGB(90, 90, 95))
 	end
-	for r = 1, NB_RANGS_B do
-		local d = RANG_1 + (r - 1) * ECART_RANGS              -- distance du bureau au tableau
-		for p = 1, NB_POSTES do
-			local jc = jM + (p - (NB_POSTES + 1) / 2) * ECART_POSTES
-			-- le bureau : un plateau blanc, deux joues grises, un lisere neon
-			pave("Bureau", duFond(d - 1.5), duFond(d + 1.5), jc - 3.5, jc + 3.5, yS + 2.8, yS + 3.1,
-				Enum.Material.SmoothPlastic, BLANC_MEUBLE)
-			for _, cj in ipairs({-1, 1}) do
-				pave("JoueBureau", duFond(d - 1.4), duFond(d + 1.4), jc + cj * 3.3, jc + cj * 3.1, yS, yS + 2.8,
-					Enum.Material.SmoothPlastic, GRIS_FONCE)
+	-- un ecran centre en "pos", la face avant tournee vers "versOu"
+	local function ecran(pos, versOu)
+		local e = piece("Ecran", Vector3.new(2.8, 1.7, 0.15), CFrame.lookAt(pos, pos + versOu), GRIS_FONCE)
+		piece("PiedEcran", Vector3.new(0.25, 0.6, 0.25), CFrame.new(pos - haut * 1.0 - versOu * 0.05),
+			Color3.fromRGB(90, 90, 95))
+		numEcran += 1
+		local g = Instance.new("SurfaceGui")
+		g.Face = Enum.NormalId.Front
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = 50
+		g.LightInfluence = 0
+		g.Parent = e
+		local fond = Instance.new("Frame")
+		fond.Size = UDim2.new(1, -8, 1, -8)
+		fond.Position = UDim2.fromOffset(4, 4)
+		fond.BackgroundColor3 = Color3.fromRGB(10, 28, 55)
+		fond.BorderSizePixel = 0
+		fond.Parent = g
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(0.9, 0.5)
+		t.Position = UDim2.fromScale(0.05, 0.25)
+		t.Font = Enum.Font.GothamBold
+		t.TextScaled = true
+		t.TextColor3 = NEON
+		t.Text = TEXTES_ECRAN[(numEcran - 1) % #TEXTES_ECRAN + 1]
+		t.Parent = fond
+	end
+	-- un ilot, centre a "d" studs du tableau et en "j" ; "tourne" = un quart de tour.
+	-- On construit tout dans le repere de l ilot : X le long des bureaux,
+	-- Z de part et d autre de la cloison.
+	local function ilot(d, j, tourne)
+		local cf0 = CFrame.fromMatrix(pt(duFond(d), j, yS), tourne and regard or cote, haut)
+		piece("CloisonIlot", Vector3.new(ILOT_BUREAU * 2, 1.4, 0.2), cf0 * CFrame.new(0, 3.8, 0), BLANC_MEUBLE)
+		piece("LisereIlot", Vector3.new(ILOT_BUREAU * 2, 0.12, 0.24), cf0 * CFrame.new(0, 4.5, 0), NEON,
+			Enum.Material.Neon)
+		for _, cx in ipairs({-1, 1}) do
+			for _, cz in ipairs({-1, 1}) do
+				local x = cx * ILOT_BUREAU / 2
+				local dehors = cf0:VectorToWorldSpace(Vector3.new(0, 0, cz))   -- de la cloison vers la chaise
+				piece("Bureau", Vector3.new(ILOT_BUREAU - 0.1, 0.3, 3.2), cf0 * CFrame.new(x, 2.95, cz * 1.6), BLANC_MEUBLE)
+				piece("LisereBureau", Vector3.new(ILOT_BUREAU - 0.1, 0.3, 0.06), cf0 * CFrame.new(x, 2.95, cz * 3.23),
+					NEON, Enum.Material.Neon)
+				piece("PiedBureau", Vector3.new(ILOT_BUREAU - 1, 2.8, 0.2), cf0 * CFrame.new(x, 1.4, cz * 0.3), GRIS_FONCE)
+				ecran((cf0 * CFrame.new(x, 4.3, cz * 0.7)).Position, dehors)
+				chaise((cf0 * CFrame.new(x, 0, cz * 4.6)).Position, -dehors)
 			end
-			pave("LisereBureau", duFond(d + 1.5), duFond(d + 1.55), jc - 3.5, jc + 3.5, yS + 2.8, yS + 3.1,
-				Enum.Material.Neon, NEON)
-			-- deux ecrans, cote tableau, tournes vers la chaise
-			for _, cj in ipairs({-1.6, 1.6}) do
-				local pe = pt(duFond(d - 0.8), jc + cj, yS + 4.3)
-				local ecran = piece("Ecran", Vector3.new(2.8, 1.7, 0.15), CFrame.lookAt(pe, pe + versSalle), GRIS_FONCE)
-				piece("PiedEcran", Vector3.new(0.25, 1.1, 0.25), CFrame.new(pe - haut * 1.2 - versSalle * 0.05),
-					Color3.fromRGB(90, 90, 95))
-				numEcran += 1
-				local g = Instance.new("SurfaceGui")
-				g.Face = Enum.NormalId.Front
-				g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-				g.PixelsPerStud = 50
-				g.LightInfluence = 0
-				g.Parent = ecran
-				local fond = Instance.new("Frame")
-				fond.Size = UDim2.new(1, -8, 1, -8)
-				fond.Position = UDim2.fromOffset(4, 4)
-				fond.BackgroundColor3 = Color3.fromRGB(10, 28, 55)
-				fond.BorderSizePixel = 0
-				fond.Parent = g
-				local t = Instance.new("TextLabel")
-				t.BackgroundTransparency = 1
-				t.Size = UDim2.fromScale(0.9, 0.5)
-				t.Position = UDim2.fromScale(0.05, 0.25)
-				t.Font = Enum.Font.GothamBold
-				t.TextScaled = true
-				t.TextColor3 = NEON
-				t.Text = TEXTES_ECRAN[(numEcran - 1) % #TEXTES_ECRAN + 1]
-				t.Parent = fond
-			end
-			-- la chaise, de l autre cote, tournee vers le tableau
-			chaise(pt(duFond(d + 3), jc, yS), regard)
 		end
 	end
-
-	-- 3. LA TABLE DE REUNION --------------------------------------
-	local LONG_TABLE = 16
-	pave("TableReunion", duFond(TABLE_REU - LONG_TABLE / 2), duFond(TABLE_REU + LONG_TABLE / 2), jM - 3, jM + 3,
-		yS + 2.8, yS + 3.1, Enum.Material.SmoothPlastic, BLANC_MEUBLE)
-	pave("LisereTable", duFond(TABLE_REU - LONG_TABLE / 2), duFond(TABLE_REU + LONG_TABLE / 2), jM - 3.05, jM + 3.05,
-		yS + 2.7, yS + 2.8, Enum.Material.Neon, NEON)
-	for _, dp in ipairs({-LONG_TABLE / 2 + 1.5, LONG_TABLE / 2 - 1.5}) do
-		pave("PiedTable", duFond(TABLE_REU + dp - 0.4), duFond(TABLE_REU + dp + 0.4), jM - 2.5, jM + 2.5, yS, yS + 2.7,
-			Enum.Material.SmoothPlastic, GRIS_FONCE)
-	end
-	for _, dp in ipairs({-5, 0, 5}) do
-		for _, cj in ipairs({-1, 1}) do
-			chaise(pt(duFond(TABLE_REU + dp), jM + cj * 4.5, yS), -cj * cote)
+	-- toute la salle : des rangees d ilots, en quinconce, sauf devant la porte
+	local longueurSalle = AILE_LONG - 2 * AILE_MUR
+	local pPorte = (devantAile + dos) / 2
+	local nbJ = math.floor((j2 - j1 - 16) / ILOT_ECART_J) + 1
+	local nbIlots, r = 0, 0
+	local d = ILOT_PREMIER
+	while d <= longueurSalle - 10 do
+		r += 1
+		local decal = (r % 2 == 0) and 3 or -3               -- le quinconce
+		for c = 1, nbJ do
+			local j = jM + (c - (nbJ + 1) / 2) * ILOT_ECART_J + decal
+			local devantPorte = d > longueurSalle - 25 and math.abs(j - pPorte) < 14
+			if not devantPorte then
+				ilot(d, j, (r + c) % 2 == 0)
+				nbIlots += 1
+			end
 		end
+		d += ILOT_ECART_D
 	end
 
 	-- 4. LES PLANTES DANS LES COINS -------------------------------
@@ -1003,8 +1016,8 @@ if BUREAUX and AILES then
 	etiquette("TexteEnseigne", "DIRECTION DE COURSE", pt(aIn - s * 0.33, pMilieu, yE + 1.3), versSalle, 17, 2.2,
 		NEON, true)
 
-	print(string.format("Bureaux : batiment %s, croquis de %d morceaux de route (echelle %.3f), %d postes",
-		s > 0 and "+sens" or "-sens", #morceaux, k, NB_RANGS_B * NB_POSTES))
+	print(string.format("Bureaux : batiment %s, croquis de %d morceaux de route (echelle %.3f), %d ilots de 4 bureaux",
+		s > 0 and "+sens" or "-sens", #morceaux, k, nbIlots))
 end
 
 -- ---- LE TOIT BLANC (2026-10-03) ----
