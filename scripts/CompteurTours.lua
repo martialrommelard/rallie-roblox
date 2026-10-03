@@ -73,12 +73,50 @@ workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
 	if workspace:GetAttribute("CourseEnCours") then
 		for _, joueur in ipairs(Players:GetPlayers()) do
 			reinitialiser(joueur)
-			-- on affiche "TOUR 1 / 3" tout de suite, sinon le panneau reste
-			-- vide jusqu au premier passage sur la ligne.
-			majTours:FireClient(joueur, 1, NB_TOURS, false)
+
+			-- Qui court ? Ceux qui sont assis dans une voiture AU FEU VERT.
+			-- Les autres sont spectateurs : on les compte comme "finis",
+			-- sinon la course attendrait quelqu un qui n a jamais pris le
+			-- depart (et les voitures vides disparaissent au vert : il ne
+			-- pourrait meme plus monter).
+			local perso = joueur.Character
+			local humanoide = perso and perso:FindFirstChildOfClass("Humanoid")
+			local siege = humanoide and humanoide.SeatPart
+			if siege and siege:IsA("VehicleSeat") then
+				-- on affiche "TOUR 1 / 3" tout de suite, sinon le panneau reste
+				-- vide jusqu au premier passage sur la ligne.
+				majTours:FireClient(joueur, 1, NB_TOURS, false)
+			else
+				fini[joueur] = true
+				print(joueur.Name .. " est spectateur")
+			end
 		end
+
+		-- Plus personne en voiture au vert ? (descendu pendant les feux)
+		-- task.defer : on ne change pas l attribut au milieu de son propre
+		-- signal, on attend la fin de l image.
+		task.defer(function()
+			if workspace:GetAttribute("CourseEnCours") and tousOntFini() then
+				workspace:SetAttribute("CourseEnCours", false)
+				print("Course terminee : personne n a pris le depart")
+			end
+		end)
 	end
 end)
+
+-- ---- LE CHRONO ----
+-- FeuxDepart a note l heure du feu vert dans l attribut HeureDepart.
+local function tempsDeCourse()
+	local depart = workspace:GetAttribute("HeureDepart")
+	return depart and (workspace:GetServerTimeNow() - depart) or 0
+end
+
+-- 83.456 secondes  ->  "1:23.45"
+local function enTexte(t)
+	local minutes = math.floor(t / 60)
+	local secondes = t - minutes * 60
+	return string.format("%d:%05.2f", minutes, secondes)
+end
 
 RunService.Heartbeat:Connect(function()
 	if not workspace:GetAttribute("CourseEnCours") then return end
@@ -93,8 +131,9 @@ RunService.Heartbeat:Connect(function()
 		-- l attendrait pour toujours et les voitures ne reviendraient jamais.
 		if humanoide and humanoide.Health <= 0 and not fini[joueur] then
 			fini[joueur] = true
-			majTours:FireClient(joueur, passages[joueur], NB_TOURS, "elimine")
-			print(joueur.Name .. " est elimine")
+			local temps = tempsDeCourse()
+			majTours:FireClient(joueur, passages[joueur], NB_TOURS, "elimine", temps)
+			print(joueur.Name .. " est elimine apres " .. enTexte(temps))
 
 			if tousOntFini() then
 				workspace:SetAttribute("CourseEnCours", false)
@@ -116,8 +155,11 @@ RunService.Heartbeat:Connect(function()
 
 				if passages[joueur] > NB_TOURS then
 					fini[joueur] = true
-					majTours:FireClient(joueur, NB_TOURS, NB_TOURS, true)
-					print(joueur.Name .. " a termine ses " .. NB_TOURS .. " tours")
+					-- C est le SERVEUR qui donne le temps final : l ecran du
+					-- joueur ne fait qu afficher, il ne decide de rien.
+					local temps = tempsDeCourse()
+					majTours:FireClient(joueur, NB_TOURS, NB_TOURS, true, temps)
+					print(joueur.Name .. " a termine ses " .. NB_TOURS .. " tours en " .. enTexte(temps))
 
 					if tousOntFini() then
 						workspace:SetAttribute("CourseEnCours", false)

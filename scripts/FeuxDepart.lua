@@ -105,12 +105,24 @@ end
 -- mesures a la voiture elle-meme, avec GetBoundingBox() : il renvoie la plus
 -- petite boite qui la contient, et son orientation. La cage s adapte ainsi a
 -- n importe quelle voiture, quelle que soit sa taille.
+--
+-- MAIS PAS A LA VOITURE QUI EST EN PISTE : des que le jeu tourne, le
+-- chassis A-Chassis gonfle sa boite de 18 a 32.8 studs de long. La cage
+-- grandissait au moment ou l on s assoit, et la voiture avait 9 studs pour
+-- avancer avant le vert. On mesure donc UNE FOIS la voiture de reference
+-- de ServerStorage, qui n a jamais roule, et on pose cette boite sur le
+-- pivot de chaque voiture (elles sont toutes des copies de ce modele).
 local MARGE  = 1.5   -- studs de jeu entre la voiture et ses murs
 local EPAIS  = 1     -- epaisseur des murs
 local RAYON  = 200   -- on ne cage que les voitures garees pres du depart
-local TRANSP = 1     -- 1 = cages invisibles ; 0.6 = murs rouges translucides
+local TRANSP = 0.6   -- 1 = cages invisibles ; 0.6 = murs rouges translucides
 
 local cages = circuit:WaitForChild("CagesDepart")
+
+local modele = game:GetService("ServerStorage"):WaitForChild("VoitureModele")
+local refBoite, refTaille = modele:GetBoundingBox()
+-- ou est la boite PAR RAPPORT au pivot de la voiture (son siege)
+local refDecalage = modele:GetPivot():ToObjectSpace(refBoite)
 
 local function poserMur(parent, cf, taille)
 	local p = Instance.new("Part")
@@ -132,7 +144,8 @@ local function fermerCages()
 	-- du Workspace : c est la qu il faut aller les chercher.
 	for _, m in ipairs(garage:GetChildren()) do
 		if m:IsA("Model") and m:FindFirstChildWhichIsA("VehicleSeat", true) then
-			local cf, taille = m:GetBoundingBox()
+			local cf = m:GetPivot() * refDecalage
+			local taille = refTaille
 
 			-- On laisse tranquilles les voitures qui sont loin : si quelqu un
 			-- fait son tour pendant qu un autre se met en grille, on ne va pas
@@ -223,11 +236,19 @@ local function compteARebours()
 	ouvrirCages()
 	afficher:FireAllClients("GO", VERT)
 
+	-- LE CHRONO DEMARRE ICI. On note l heure du serveur au feu vert.
+	-- GetServerTimeNow() donne la MEME heure sur le serveur et chez chaque
+	-- joueur : l ecran de chacun peut donc calculer "maintenant - depart"
+	-- tout seul, 60 fois par seconde, sans rien demander au serveur.
+	-- On le pose AVANT CourseEnCours : les attributs arrivent chez les
+	-- joueurs dans l ordre, l heure sera donc deja la quand la course part.
+	workspace:SetAttribute("HeureDepart", workspace:GetServerTimeNow())
+
 	-- Le signal pour le script CompteurTours : a partir de maintenant, les
 	-- passages sur la ligne comptent. Un attribut, c est une petite valeur
 	-- accrochee a un objet, que tous les scripts du serveur peuvent lire.
 	workspace:SetAttribute("CourseEnCours", true)
-	print("DEPART !")          -- <<< c est ICI que le chrono demarrera
+	print("DEPART !")
 
 	task.wait(VERT_TENU)
 	toutEteindre()

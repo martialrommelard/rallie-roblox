@@ -26,6 +26,7 @@ local HAUTEUR     = 1.63   -- le DriveSeat est a 1.63 stud au-dessus des roues
 local GARDE       = 0.4    -- on pose la voiture juste au-dessus du sol
 local LONGUEUR    = 9      -- la longueur d un emplacement (les traits "Cote")
 local RETOURNER   = false  -- true si les voitures se posent a l envers
+local JEU_NEZ     = 0.5    -- studs entre le nez de la voiture et le trait Avant
 
 local TOLERANCE   = 1      -- secondes hors de la route avant d etre elimine
                            -- (une roue qui mord l herbe ne tue pas)
@@ -76,6 +77,21 @@ local function placerVoitures()
 			-- PivotTo deplace tout le modele d un bloc, en gardant ses pieces
 			-- assemblees. On le fait APRES l avoir mis dans le Workspace.
 			v:PivotTo(cf)
+
+			-- Mais le pivot d une voiture, c est son SIEGE, et le pilote est
+			-- assis a gauche : la carrosserie depassait de 1.2 stud d un cote.
+			-- Et elle fait 18 studs pour une case de 9 : centree, elle
+			-- depassait de 4.5 studs devant le trait Avant.
+			-- On demande donc sa boite a la voiture de REFERENCE (comme pour
+			-- les cages : en jeu, A-Chassis gonfle la boite d une voiture qui
+			-- roule), et on la recale : centree entre les deux traits "Cote",
+			-- le nez juste derriere le trait "Avant".
+			local refBoite, taille = modele:GetBoundingBox()
+			local ecart = modele:GetPivot():PointToObjectSpace(refBoite.Position)  -- la boite, vue depuis le siege
+			local epaisseur = place.Avant.Size.Z                 -- le trait Avant lui-meme
+			-- Dans la case, l avant est vers -Z et le trait Avant est a -LONGUEUR/2.
+			local zVoulu = -LONGUEUR / 2 + epaisseur / 2 + JEU_NEZ + taille.Z / 2
+			v:PivotTo(cf * CFrame.new(-ecart.X, 0, zVoulu - ecart.Z))
 		end
 	end
 	-- Les cages d avant entouraient des voitures qui viennent d etre
@@ -219,6 +235,18 @@ local courseAvant = false
 
 workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
 	local maintenant = workspace:GetAttribute("CourseEnCours") == true
+
+	-- AU FEU VERT (passage de faux a vrai) : les voitures ou personne n est
+	-- assis disparaissent. Elles reviennent toutes avec placerVoitures a la
+	-- fin de la course, pretes pour la suivante.
+	if not courseAvant and maintenant then
+		for _, v in ipairs(dossier:GetChildren()) do
+			local siege = v:FindFirstChildWhichIsA("VehicleSeat", true)
+			if siege and not siege.Occupant then
+				v:Destroy()
+			end
+		end
+	end
 
 	if courseAvant and not maintenant then
 		task.delay(DELAI_RESET, placerVoitures)
