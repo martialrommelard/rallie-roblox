@@ -7,7 +7,14 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-10-03
+### État au 2026-10-05
+
+**Les bureaux de la direction de course sont VIVANTS ✅ (2026-10-05)** —
+s'asseoir à un bureau ouvre un menu (caméras de la piste, pilotes en direct
+avec caméra TV ou embarquée, météo) ; éclairage de nuit (réverbères jaunes,
+néons bleus au spawn) ; 18 employés PNJ qui tapent au clavier ; au fond, le
+directeur de course avec **mon avatar** montre le tremplin sur le croquis.
+Tout est construit **en Play** par des scripts (voir le journal du 05).
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
@@ -77,6 +84,11 @@ un joueur s'assoit
 | `ServerScriptService` | `Voitures` | pose la grille, gère les chutes, remet les voitures |
 | `StarterGui/EcranDepart` | `Affichage` | **LocalScript** : l'écran du joueur |
 | `Workspace/Baseplate` | `Piques` | la fosse (à déplacer dans `ServerScriptService`) |
+| `ServerScriptService` | `PosteDirection` | les bureaux : caméras, classement en direct, météo (vérifie qu'on est assis) |
+| `StarterPlayerScripts` | `PosteDirection` | **LocalScript** : le menu du bureau, la caméra, la pluie |
+| `ServerScriptService` | `EclairageNuit` | réverbères, lampes du tunnel, néons bleus du spawn, la nuit |
+| `ServerScriptService` | `PnjBureaux` | les 18 employés et le directeur |
+| `StarterPlayerScripts` | `PnjBureaux` | **LocalScript** : les mains qui tapent, les têtes qui tournent |
 
 Les trois scripts serveur se parlent par **un seul attribut** :
 `workspace:GetAttribute("CourseEnCours")`. `FeuxDepart` le met à `true` au
@@ -187,6 +199,10 @@ Ensuite : un essai à plusieurs joueurs, et cocher l'accès aux API dans Studio.
 | **`Clone()` et `PivotTo()`** | 2026-09-23 | Remettre les voitures en grille |
 | **`RaycastParams`** : un rayon qui traverse certains objets | 2026-10-03 | Savoir sur quoi roule la voiture |
 | **`os.clock()`** : mesurer une durée | 2026-10-03 | La tolérance d'1 s hors de la route |
+| **Ne pas croire le client** : le serveur vérifie avant d'obéir | 2026-10-05 | Seul un joueur assis au bureau peut changer la météo |
+| **`ReplicationFocus`** : choisir ce que le streaming envoie | 2026-10-05 | Les caméras du bureau voient la piste au loin |
+| **`SpotLight` / `PointLight`**, `Lighting.ClockTime` | 2026-10-05 | L'éclairage de nuit |
+| **Les PNJ** : `CreateHumanoidModelFromDescription`, `AnimationConstraint` | 2026-10-05 | Les employés et le directeur |
 
 ---
 
@@ -399,6 +415,30 @@ revenues sur la grille. ✅
 | Écran caméra du podium | écran noir | une caméra créée par le serveur n'arrive pas chez le joueur (abandonné) |
 | Croquis tout petit | le circuit est tout en longueur | choisir le sens du dessin (quart de tour) pour remplir le tableau |
 | « Le bâtiment de droite » | je me suis trompé de bâtiment | la droite dépend d'où on regarde : demander ou montrer |
+
+### 2026-10-05 — les bureaux prennent vie
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| « quand on s'assoit sur un bureau on peut faire quelque chose avec » | `PosteDirection` (serveur) + `PosteDirection` (LocalScript) : menu CAMÉRAS / PILOTES / MÉTÉO ; l'écran du bureau affiche « EN LIGNE : moi » |
+| Caméras plus hautes, moins nombreuses | 30 studs de haut, 15 du bord ; 7 dans le menu (DÉPART, TREMPLIN, TUNNEL + 4) ; 32 caméras TV pour suivre un pilote |
+| Enlever les drapeaux | fait (ils n'avaient pas d'effet sur la course) |
+| La nuit : lumière jaune sur la route, bleue au spawn | `EclairageNuit` : 40 réverbères dont le bras va **jusqu'au milieu de la route**, 10 lampes dans le tunnel, 52 lumières bleues sur les néons du spawn ; s'allume avec l'heure (`ClockTime`) |
+| Des PNJ qui travaillent aux bureaux | `PnjBureaux` : 18 employés, 18 métiers différents, casque radio, clavier ; ils tapent et tournent la tête (LocalScript) |
+| Au fond, quelqu'un qui montre la piste, avec mon avatar | le directeur (avatar de `game.CreatorId`), de face, montre le tremplin avec une baguette, point rouge sur le croquis, jambes naturelles |
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Caméras à 9 studs | les barrières cachaient la route à presque toutes | vérifier **par un rayon** que la caméra voit la route |
+| Réverbère au bord | il n'éclairait que le bord : la route fait 44 à 80 studs | mesurer la largeur, mettre la lampe au milieu (99 % de la route éclairée) |
+| Poteaux de 76 studs | au-dessus d'un ravin, le poteau descendait jusqu'en bas | l'accrocher au bord de la route |
+| `C0` en lecture seule | les avatars récents n'ont plus de `Motor6D` | tourner l'`Attachment0` des `AnimationConstraint` |
+| PNJ qui flottent / reculent | la soudure de la chaise est **tournée** | `CFrame.new(…) * C0` (à gauche) pour descendre dans le repère de la chaise |
+| Étiquettes énormes | taille en pixels | taille en **studs** : elle rapetisse de loin |
+| Le bras ne visait pas le point | 25° d'écart | viser en 4 essais, chacun corrige l'erreur du précédent |
+
+⚠️ Les réverbères et les PNJ sont **construits au lancement du Play** : on ne
+les voit pas dans l'éditeur, c'est normal.
 
 ---
 
