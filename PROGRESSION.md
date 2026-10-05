@@ -16,6 +16,17 @@ néons bleus au spawn) ; 18 employés PNJ qui tapent au clavier ; au fond, le
 directeur de course avec **mon avatar** montre le tremplin sur le croquis.
 Tout est construit **en Play** par des scripts (voir le journal du 05).
 
+**Le sous-sol et la salle de sport ✅ (2026-10-05, suite)** — une grande salle
+creusée sous le spawn et sous les deux bâtiments (sol noir, murs blancs,
+plafonniers), entrées : les 2 escaliers derrière le spawn (portes en face des
+marches) et 2 grands garages côté piste. Dans le bâtiment vide : salle de
+sport (tapis, banc, sacs de frappe, vélos) et 2 **simulateurs-bornes
+d'arcade en 3D** (on reste assis, on joue sur l'écran).
+⚠️ Le sous-sol et la salle de sport **modifient la place** (générateurs à
+lancer une fois en Edit) : sans `Ctrl+S`, ils sont perdus.
+⚠️ **À vérifier en reprenant** : « l'écran bugge » sur la borne 3D (pas encore
+su quoi : clignotement ? saccades ? — demander).
+
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
 **La zone de départ : TERMINÉE ✅ — ligne, portique, grille**
@@ -89,6 +100,11 @@ un joueur s'assoit
 | `ServerScriptService` | `EclairageNuit` | réverbères, lampes du tunnel, néons bleus du spawn, la nuit |
 | `ServerScriptService` | `PnjBureaux` | les 18 employés et le directeur |
 | `StarterPlayerScripts` | `PnjBureaux` | **LocalScript** : les mains qui tapent, les têtes qui tournent |
+| `ServerScriptService` | `SalleSportServeur` | banc, vélos, sacs de frappe, tapis, et les bornes d'arcade (record, partie recopiée) |
+| `StarterPlayerScripts` | `Arcade` | **LocalScript** : le jeu de course 3D sur l'écran des simulateurs |
+| `StarterPlayerScripts` | `Exercices` | **LocalScript** : bras et jambes qui bougent (banc, vélo, coups de poing) |
+| `StarterPlayerScripts` | `LumiereSpawn` | **LocalScript** : un peu moins de lumière quand on est sur le spawn |
+| (à lancer en Edit) | `SalleSousSpawn.lua`, `SalleSport.lua`, `MachineSimulateur.lua` | les générateurs du sous-sol, de la salle de sport et des simulateurs |
 
 Les trois scripts serveur se parlent par **un seul attribut** :
 `workspace:GetAttribute("CourseEnCours")`. `FeuxDepart` le met à `true` au
@@ -436,6 +452,26 @@ revenues sur la grille. ✅
 | PNJ qui flottent / reculent | la soudure de la chaise est **tournée** | `CFrame.new(…) * C0` (à gauche) pour descendre dans le repère de la chaise |
 | Étiquettes énormes | taille en pixels | taille en **studs** : elle rapetisse de loin |
 | Le bras ne visait pas le point | 25° d'écart | viser en 4 essais, chacun corrige l'erreur du précédent |
+
+### 2026-10-05 (suite) — le sous-sol, la salle de sport, les simulateurs
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| Une grande salle en bas des escaliers derrière le spawn, sans le trou à côté | `SalleSousSpawn.lua` creuse le demi-rond **et** les deux bâtiments (une seule salle de ~370 studs) ; les 2 puits de 96 studs bouchés |
+| Les côtés qui dépassent, mal coupés, le petit trou, la ligne bleue | mur rond d'un seul tenant, coupé au mur des bâtiments (tournés de 0,6°) ; coins bouchés ; ligne néon posée au sol au pied de tous les murs |
+| Sol noir (comme la rampe du garage), murs blancs, lumière classique sans ombres | sol en *Plastic* noir ; plafonniers ronds, lumière à mi-hauteur, aucune ombre |
+| L'entrée devant l'escalier, puis un garage devant la piste, en très grand | portes en face des marches ; 2 portails de garage de 107 × 39 avec rampe |
+| Lumière du spawn trop forte | lumière du jeu remise comme avant ; `LumiereSpawn` baisse l'exposition **seulement** sur le spawn |
+| Salle de sport utilisable + simulateur « comme dans les films » | tapis qui poussent, banc, sacs qu'on frappe (E), vélos ; simulateurs = **bornes d'arcade 3D** : on reste assis, on joue sur l'écran |
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Suppression « des petits murs » | un vrai morceau de mur effacé → fente | filtrer par nom, pas par taille |
+| Rayon qui part DANS une pièce | carte des hauteurs fausse | coupes horizontales avec `GetPartBoundsInBox` |
+| `CorrugatedSteel`, `PlayerModule` | n'existent pas ici | vérifier avant d'utiliser |
+| Appuyer sur Z à la borne | le personnage se levait | `ContextActionService` « avale » les touches pendant la partie |
+| Siège penché et baquet solide | le joueur était éjecté | siège à plat, décor traversable |
+| Caméra à 4,4 studs de l'écran | elle était dans le volant | 2,8 studs, angle calculé |
 
 ⚠️ Les réverbères et les PNJ sont **construits au lancement du Play** : on ne
 les voit pas dans l'éditeur, c'est normal.
