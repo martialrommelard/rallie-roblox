@@ -6,7 +6,7 @@
 --  nous-memes les articulations du personnage, a chaque image, PAR-DESSUS
 --  ses animations normales (on tourne l Attachment0 des AnimationConstraint,
 --  comme pour les PNJ des bureaux).
---    BANC   les bras poussent la barre, en meme temps qu elle monte
+--    BANC   allonge, les mains sur la barre ; on la pousse au bon moment
 --    VELO   les pedales tournent ; le pilote se penche, tient le guidon, et
 --           ses pieds SUIVENT les pedales (le triangle cuisse-mollet)
 --    SAC    a chaque coup ("Frapper"), un bras part en avant, gauche puis droit
@@ -385,7 +385,212 @@ local function poserTraction(perso, dt)
 	end
 end
 
--- ---- MOI : le banc et le sac ----
+-- ---- LE BANC DE DEVELOPPE COUCHE : le jeu du bon moment ----
+-- Un curseur monte et descend dans la jauge. Quand la barre est sur la
+-- poitrine, il faut cliquer pendant qu il est dans la ZONE VERTE : la barre
+-- monte (+1). A chaque barre soulevee, le curseur va plus vite et la zone
+-- retrecit (et elle change de place). Rate : on attend PENALITE secondes.
+local PERIODE0, PERIODE_MIN, ACCELERE = 1.8, 0.55, 0.92   -- un aller-retour du curseur (s)
+local ZONE0, ZONE_MIN, RETRECIT       = 0.30, 0.08, 0.90  -- la hauteur de la zone verte (1 = toute la jauge)
+local PENALITE = 0.6
+
+local evenementBanc = game:GetService("ReplicatedStorage"):WaitForChild("Banc")
+local banc = nil       -- la partie en cours
+
+local guiB = Instance.new("ScreenGui")
+guiB.Name = "JaugeBanc"
+guiB.ResetOnSpawn = false
+guiB.Enabled = false
+guiB.Parent = joueur:WaitForChild("PlayerGui")
+local cadreB = cadre:Clone()          -- le meme cadre que la jauge des tractions
+for _, c in ipairs(cadreB:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+cadreB.Parent = guiB
+local piste = Instance.new("Frame")
+piste.Position, piste.Size = UDim2.fromOffset(8, 8), UDim2.new(1, -16, 1, -16)
+piste.BackgroundTransparency = 1
+piste.Parent = cadreB
+local zoneB = Instance.new("Frame")
+zoneB.AnchorPoint = Vector2.new(0, 0.5)
+zoneB.BackgroundColor3 = Color3.fromRGB(80, 220, 120)
+zoneB.BorderSizePixel = 0
+zoneB.Parent = piste
+Instance.new("UICorner", zoneB).CornerRadius = UDim.new(0, 6)
+local curseur = Instance.new("Frame")
+curseur.AnchorPoint = Vector2.new(0.5, 0.5)
+curseur.Size = UDim2.new(1, 14, 0, 7)
+curseur.BackgroundColor3 = Color3.new(1, 1, 1)
+curseur.BorderSizePixel = 0
+curseur.ZIndex = 3
+curseur.Parent = piste
+local function etiquetteB(pos, taille, texte, couleur)
+	local l = etiquette(pos, taille, texte, couleur)
+	l.Parent = guiB
+	return l
+end
+local texteBarres  = etiquetteB(UDim2.new(1, -20, 0.5, -190), UDim2.fromOffset(260, 40), "BARRES : 0", Color3.new(1, 1, 1))
+local texteConsigne = etiquetteB(UDim2.new(1, -120, 0.5, 0), UDim2.fromOffset(260, 44), "", Color3.fromRGB(255, 205, 60))
+local texteResultat = etiquetteB(UDim2.new(1, -120, 0.5, -60), UDim2.fromOffset(200, 56), "", Color3.fromRGB(80, 220, 120))
+etiquetteB(UDim2.new(1, -20, 0.5, 190), UDim2.fromOffset(260, 26), "Espace : se relever", Color3.fromRGB(180, 190, 200))
+
+local function nouvelleZone(b)
+	b.centre = b.largeur / 2 + 0.05 + math.random() * (1 - b.largeur - 0.1)
+	zoneB.Position = UDim2.fromScale(0, 1 - b.centre)
+	zoneB.Size = UDim2.fromScale(1, b.largeur)
+end
+
+local function finirBanc()
+	if not banc then return end
+	local b = banc
+	banc = nil
+	for _, o in ipairs({b.aligneP, b.aligneO, b.att}) do o:Destroy() end
+	local perso = joueur.Character
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	local racine = perso and perso:FindFirstChild("HumanoidRootPart")
+	if racine then        -- on se releve, debout a cote du banc
+		local c = b.coussin.CFrame
+		racine.CFrame = CFrame.lookAt(c.Position + c.RightVector * 2.2 + c.UpVector * 3, c.Position + c.RightVector * 2.2 + c.UpVector * 3 + c.LookVector)
+	end
+	if hum then hum.PlatformStand = false end
+	if perso then relacher(perso) end
+	b.prompt.Enabled = true
+	guiB.Enabled = false
+	evenementBanc:FireServer("fin")
+end
+
+local function commencerBanc(coussin, prompt)
+	local perso = joueur.Character
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	local racine = perso and perso:FindFirstChild("HumanoidRootPart")
+	local LT, UT = perso and perso:FindFirstChild("LowerTorso"), perso and perso:FindFirstChild("UpperTorso")
+	local modele = coussin.Parent
+	local place = coussin:FindFirstChild("Epaules")
+	if banc or traction or not (hum and racine and LT and UT and place) or hum.SeatPart then return end
+	if modele:GetAttribute("Occupant") then return end
+	-- ou est l epaule, vue depuis le HumanoidRootPart (comme pour la traction)
+	local epauleY = racine.RootRigAttachment.Position.Y - LT.RootRigAttachment.Position.Y + LT.WaistRigAttachment.Position.Y
+		- UT.WaistRigAttachment.Position.Y + UT.RightShoulderRigAttachment.Position.Y
+	-- allonge sur le dos : la tete vers le rack (-Z du coussin), le ventre vers le ciel
+	local c = coussin.CFrame
+	local haut, dos = c.LookVector, -c.UpVector
+	local pos = place.WorldPosition + c.UpVector * (UT.Size.Z / 2) - haut * epauleY
+	local att = Instance.new("Attachment")
+	att.Parent = racine
+	local aligneP = Instance.new("AlignPosition")
+	aligneP.Mode = Enum.PositionAlignmentMode.OneAttachment
+	aligneP.Attachment0 = att
+	aligneP.MaxForce = 1e6
+	aligneP.Responsiveness = 60
+	aligneP.Position = pos
+	aligneP.Parent = racine
+	local aligneO = Instance.new("AlignOrientation")
+	aligneO.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	aligneO.Attachment0 = att
+	aligneO.MaxTorque = 1e6
+	aligneO.Responsiveness = 60
+	aligneO.CFrame = CFrame.fromMatrix(Vector3.zero, haut:Cross(dos), haut, dos)
+	aligneO.Parent = racine
+	hum.PlatformStand = true
+	racine.CFrame = CFrame.fromMatrix(pos, haut:Cross(dos), haut, dos)      -- tout de suite en place
+	prompt.Enabled = false
+	banc = {perso = perso, modele = modele, coussin = coussin, barre = modele:FindFirstChild("Barre"), prompt = prompt,
+		aligneP = aligneP, aligneO = aligneO, att = att,
+		reps = 0, periode = PERIODE0, largeur = ZONE0, phase = 0, centre = 0.5, curseur = 0,
+		etaitEnBas = false, attendre = false, bloque = 0, finResultat = 0}
+	nouvelleZone(banc)
+	texteBarres.Text = "BARRES : 0"
+	texteResultat.Text = ""
+	guiB.Enabled = true
+	evenementBanc:FireServer("debut")
+end
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt, qui)
+	if qui == joueur and prompt.Parent and prompt.Parent.Name == "CoussinBanc" then
+		commencerBanc(prompt.Parent, prompt)
+	end
+end)
+UserInputService.InputBegan:Connect(function(entree, dejaPris)
+	local b = banc
+	if not b then return end
+	if entree.KeyCode == Enum.KeyCode.Space then finirBanc() return end
+	if dejaPris then return end
+	if not (entree.UserInputType == Enum.UserInputType.MouseButton1 or entree.UserInputType == Enum.UserInputType.Touch
+		or entree.KeyCode == Enum.KeyCode.ButtonR2) then return end
+	if not b.modele:GetAttribute("EnBas") or b.attendre or os.clock() < b.bloque then return end
+	local ecart = math.abs(b.curseur - b.centre)
+	if ecart <= b.largeur / 2 then
+		-- dans le vert : on pousse !
+		b.attendre = true
+		b.reps += 1
+		evenementBanc:FireServer("pousse")
+		texteBarres.Text = "BARRES : " .. b.reps
+		texteResultat.Text = ecart < b.largeur / 6 and "PARFAIT !" or "BIEN !"
+		texteResultat.TextColor3 = Color3.fromRGB(80, 220, 120)
+		-- et ca se complique
+		b.periode = math.max(PERIODE_MIN, b.periode * ACCELERE)
+		b.largeur = math.max(ZONE_MIN, b.largeur * RETRECIT)
+	else
+		texteResultat.Text = "RATE !"
+		texteResultat.TextColor3 = Color3.fromRGB(255, 70, 50)
+		b.bloque = os.clock() + PENALITE
+	end
+	b.finResultat = os.clock() + 0.9
+end)
+
+local function poserBanc(perso, dt)
+	local b = banc
+	local hum = perso:FindFirstChildOfClass("Humanoid")
+	if perso ~= b.perso or not hum or hum.Health <= 0 or not b.modele:IsDescendantOf(workspace) then finirBanc() return end
+	-- le curseur : un aller-retour par periode (0 en bas, 1 en haut)
+	b.phase = (b.phase + dt / b.periode) % 1
+	b.curseur = b.phase < 0.5 and b.phase * 2 or 2 - b.phase * 2
+	curseur.Position = UDim2.fromScale(0.5, 1 - b.curseur)
+	-- la barre arrive en bas : une nouvelle zone verte
+	local enBas = b.modele:GetAttribute("EnBas") == true
+	if enBas and not b.etaitEnBas then nouvelleZone(b) end
+	if not enBas then b.attendre = false end
+	b.etaitEnBas = enBas
+	local pret = enBas and not b.attendre
+	zoneB.BackgroundTransparency = pret and 0 or 0.7
+	texteConsigne.Text = pret and "CLIQUE DANS LE VERT !" or "..."
+	if os.clock() > b.finResultat then texteResultat.Text = "" end
+	-- la pose : allonge, les mains sur la barre (le meme triangle)
+	local j = jointsDe(perso)
+	local UT = perso:FindFirstChild("UpperTorso")
+	if not (j and UT and b.barre) then return end
+	local animateur = hum:FindFirstChildOfClass("Animator")
+	if animateur then
+		for _, piste in ipairs(animateur:GetPlayingAnimationTracks()) do piste:Stop(0) end
+	end
+	local poignees = {}
+	for _, p in ipairs(b.barre:GetChildren()) do
+		if p.Name == "PoigneeBanc" then table.insert(poignees, p) end
+	end
+	for _, cote in ipairs({"Right", "Left"}) do
+		local hautBras, avant, main = perso:FindFirstChild(cote .. "UpperArm"), perso:FindFirstChild(cote .. "LowerArm"), perso:FindFirstChild(cote .. "Hand")
+		local epaule = UT[cote .. "ShoulderRigAttachment"]
+		local poignee = nil
+		for _, p in ipairs(poignees) do
+			if not poignee or (p.Position - epaule.WorldPosition).Magnitude < (poignee.Position - epaule.WorldPosition).Magnitude then poignee = p end
+		end
+		if hautBras and avant and main and poignee then
+			local vHaut = hautBras[cote .. "ElbowRigAttachment"].Position - hautBras[cote .. "ShoulderRigAttachment"].Position
+			local vBas = (avant[cote .. "WristRigAttachment"].Position - avant[cote .. "ElbowRigAttachment"].Position)
+				+ (main[cote .. "GripAttachment"].Position - main[cote .. "WristRigAttachment"].Position)
+			local tHaut, tBas = triangle(UT.CFrame * j[cote .. "Shoulder"].base, epaule.WorldPosition,
+				poignee.Position, longueurCote(vHaut), longueurCote(vBas), false)
+			local s = tHaut - angleCote(vHaut)
+			poserRad(j, cote .. "Shoulder", s)
+			poserRad(j, cote .. "Elbow", tBas - s - angleCote(vBas))
+		end
+		-- les cuisses descendent du banc, les pieds a plat par terre
+		poser(j, cote .. "Hip", -30)
+		poser(j, cote .. "Knee", -60)
+		poser(j, cote .. "Ankle", 0)
+	end
+	poser(j, "Waist", 0)
+end
+
+-- ---- MOI : le sac ----
 -- les coups de poing
 local coup = nil       -- {bras = "Right"/"Left", t0}
 local bras = "Left"
@@ -401,9 +606,6 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, qui)
 	end
 end)
 
--- la barre (avec le streaming, elle peut arriver plus tard) ; sa hauteur de
--- repos = la plus basse qu on lui ait vue
-local barre, yBarreRepos = nil, math.huge
 local surLeVelo = {}     -- perso -> true : ceux qu on a poses sur un velo a l image d avant
 
 RunService.RenderStepped:Connect(function(dt)
@@ -424,24 +626,15 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 	surLeVelo = vus
 
-	-- MOI, sur le banc ou au sac
+	-- MOI : a la barre de traction, au banc, ou au sac
 	local perso = joueur.Character
 	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
 	local j = perso and jointsDe(perso)
 	if traction then if perso then poserTraction(perso, dt) else finirTraction() end return end
+	if banc then if perso then poserBanc(perso, dt) else finirBanc() end return end
 	if not hum or not j or vus[perso] then return end
-	local siege = hum.SeatPart
 	-- par defaut : rien (on remet tout comme l animation de Roblox le fait)
 	local epD, epG, coD, coG = 0, 0, 0, 0
-
-	if not barre then barre = salle:FindFirstChild("Barre") end
-	if barre then yBarreRepos = math.min(yBarreRepos, barre.Position.Y) end
-	if siege and siege.Name == "BancMuscu" and barre then
-		-- s = 0 barre en bas, 1 barre en haut (elle monte de 1,4 stud)
-		local s = math.clamp((barre.Position.Y - yBarreRepos) / 1.4, 0, 1)
-		epD, epG = 55 + 45 * s, 55 + 45 * s      -- les bras montent devant
-		coD, coG = 80 * (1 - s), 80 * (1 - s)    -- les coudes se tendent en haut
-	end
 	if coup then
 		local k = (os.clock() - coup.t0) / DUREE_COUP
 		if k >= 1 then

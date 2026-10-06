@@ -3,10 +3,11 @@
 --  A placer dans ServerScriptService. Les objets sont construits par
 --  SalleSport.lua (dans ZoneSpawn/SalleSport).
 --
---    BANC     assis : la barre monte et descend, on compte les repetitions
---    VELOS    assis : le pedalier tourne, les kilometres defilent
+--    BANC     allonge : la barre descend, on la pousse au bon moment (jauge)
+--    VELOS    assis : les kilometres defilent
 --    SACS     un bouton "Frapper" : le sac part sous le coup
---    TAPIS    la console affiche le coureur et sa distance
+--    TAPIS    chacun sa vitesse, la console affiche le coureur et sa distance
+--    BARRES   de traction : on compte, chaque barre a son record
 -- =========================================================
 
 local Players           = game:GetService("Players")
@@ -19,45 +20,78 @@ local function texteDe(part)
 	local g = part and part:FindFirstChildOfClass("SurfaceGui")
 	return g and g:FindFirstChild("Texte")
 end
-local function plusProcheDe(nom, pos)
-	local best, d = nil, math.huge
-	for _, p in ipairs(salle:GetChildren()) do
-		if p.Name == nom then
-			local dd = (p.Position - pos).Magnitude
-			if dd < d then best, d = p, dd end
-		end
-	end
-	return best
-end
-local function joueurAssis(siege)
-	local hum = siege.Occupant
-	return hum and Players:GetPlayerFromCharacter(hum.Parent), hum
-end
 
 -- =========================================================
---  1. LE BANC DE MUSCULATION
+--  1. LE BANC DE DEVELOPPE COUCHE (le modele BancDeMusculation : BancMusculation.lua)
+--  Le jeu de la jauge est chez le joueur (Exercices). Ici, c est NOUS qui
+--  bougeons la barre (comme ca, tout le monde la voit) :
+--    "debut"  -> la barre descend sur la poitrine, puis EnBas = vrai
+--    "pousse" -> (il a clique dans le vert) la barre monte : +1 ; puis elle
+--                redescend et EnBas = vrai de nouveau
+--    "fin"    -> la barre retourne sur les crochets
 -- =========================================================
-local banc = salle:FindFirstChild("BancMuscu")
-local barre = salle:FindFirstChild("Barre")
-if banc and barre then
-	local repos = barre.CFrame
-	local ecran = texteDe(plusProcheDe("EcranBanc", banc.Position))
-	local enCours = false
-	banc:GetPropertyChangedSignal("Occupant"):Connect(function()
-		if not banc.Occupant or enCours then return end
-		enCours = true
-		local reps = 0
-		while banc.Occupant do
-			local monte = TweenService:Create(barre, TweenInfo.new(0.7, Enum.EasingStyle.Sine), {CFrame = repos + Vector3.new(0, 1.4, 0)})
-			monte:Play() monte.Completed:Wait()
-			local descend = TweenService:Create(barre, TweenInfo.new(0.7, Enum.EasingStyle.Sine), {CFrame = repos})
-			descend:Play() descend.Completed:Wait()
-			reps += 1
-			if ecran then ecran.Text = "REPS : " .. reps end
+local evenementBanc = game:GetService("ReplicatedStorage"):FindFirstChild("Banc") or Instance.new("RemoteEvent")
+evenementBanc.Name = "Banc"
+evenementBanc.Parent = game:GetService("ReplicatedStorage")
+
+local banc = salle:FindFirstChild("BancDeMusculation")
+local barre = banc and banc:FindFirstChild("Barre")
+if barre then
+	local enHaut = barre.CFrame
+	local enBas = enHaut - enHaut.UpVector * (banc:GetAttribute("Course") or 0.9)
+	local serieBanc = nil          -- {joueur, n}
+	local recordBanc = nil         -- {n, nom}
+	local tour = 0                 -- change a chaque "fin" : les mouvements en route s arretent
+	local function majPanneau()
+		local texte = "DEVELOPPE COUCHE\nRECORD : " .. (recordBanc and string.format("%s · %d", recordBanc.nom, recordBanc.n) or "—")
+			.. (serieBanc and string.format("\n%s : %d", serieBanc.joueur.DisplayName, serieBanc.n) or "")
+		for _, g in ipairs(banc.PanneauBanc:GetChildren()) do
+			local t = g:IsA("SurfaceGui") and g:FindFirstChild("Texte")
+			if t then t.Text = texte end
 		end
-		barre.CFrame = repos
-		task.delay(3, function() if ecran and not banc.Occupant then ecran.Text = "REPS : 0" end end)
-		enCours = false
+	end
+	local function bouger(cf, duree)
+		local tw = TweenService:Create(barre, TweenInfo.new(duree, Enum.EasingStyle.Sine), {CFrame = cf})
+		tw:Play()
+		return tw
+	end
+	local function descendre(monTour, duree)
+		bouger(enBas, duree).Completed:Connect(function()
+			if tour == monTour and serieBanc then banc:SetAttribute("EnBas", true) end
+		end)
+	end
+	local function finir()
+		tour += 1
+		serieBanc = nil
+		banc:SetAttribute("EnBas", false)
+		banc:SetAttribute("Occupant", nil)
+		bouger(enHaut, 0.6)
+		majPanneau()
+	end
+	majPanneau()
+	evenementBanc.OnServerEvent:Connect(function(joueur, quoi)
+		local proprio = banc:GetAttribute("Occupant") == joueur.UserId
+		if quoi == "fin" then if proprio then finir() end return end
+		local r = joueur.Character and joueur.Character:FindFirstChild("HumanoidRootPart")
+		if not r or (r.Position - barre.Position).Magnitude > 10 then return end
+		if quoi == "debut" and not banc:GetAttribute("Occupant") then
+			banc:SetAttribute("Occupant", joueur.UserId)
+			serieBanc = {joueur = joueur, n = 0}
+			descendre(tour, 1.2)
+		elseif quoi == "pousse" and proprio and banc:GetAttribute("EnBas") then
+			banc:SetAttribute("EnBas", false)
+			serieBanc.n += 1
+			if not recordBanc or serieBanc.n > recordBanc.n then recordBanc = {n = serieBanc.n, nom = joueur.DisplayName} end
+			local monTour = tour
+			bouger(enHaut, 0.45).Completed:Connect(function()
+				task.wait(0.3)
+				if tour == monTour then descendre(monTour, 1.0) end
+			end)
+		end
+		majPanneau()
+	end)
+	Players.PlayerRemoving:Connect(function(joueur)
+		if banc:GetAttribute("Occupant") == joueur.UserId then finir() end
 	end)
 end
 
