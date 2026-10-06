@@ -28,6 +28,7 @@ end
 --    "debut"  -> la barre descend sur la poitrine, puis EnBas = vrai
 --    "pousse" -> (il a clique dans le vert) la barre monte : +1 ; puis elle
 --                redescend et EnBas = vrai de nouveau
+--    "zero"   -> (rate apres le niveau 5) la serie repart de zero
 --    "fin"    -> la barre retourne sur les crochets
 -- =========================================================
 local evenementBanc = game:GetService("ReplicatedStorage"):FindFirstChild("Banc") or Instance.new("RemoteEvent")
@@ -87,6 +88,8 @@ if barre then
 				task.wait(0.3)
 				if tour == monTour then descendre(monTour, 1.0) end
 			end)
+		elseif quoi == "zero" and proprio and serieBanc then
+			serieBanc.n = 0                -- rate apres le niveau 5 : la serie repart de zero
 		end
 		majPanneau()
 	end)

@@ -389,10 +389,12 @@ end
 -- Un curseur monte et descend dans la jauge. Quand la barre est sur la
 -- poitrine, il faut cliquer pendant qu il est dans la ZONE VERTE : la barre
 -- monte (+1). A chaque barre soulevee, le curseur va plus vite et la zone
--- retrecit (et elle change de place). Rate : on attend PENALITE secondes.
+-- retrecit (et elle change de place). Rate : on attend PENALITE secondes ;
+-- et a partir de NIVEAU_DANGER barres, rater = on recommence a zero !
 local PERIODE0, PERIODE_MIN, ACCELERE = 1.8, 0.55, 0.92   -- un aller-retour du curseur (s)
 local ZONE0, ZONE_MIN, RETRECIT       = 0.30, 0.08, 0.90  -- la hauteur de la zone verte (1 = toute la jauge)
 local PENALITE = 0.6
+local NIVEAU_DANGER = 5
 
 local evenementBanc = game:GetService("ReplicatedStorage"):WaitForChild("Banc")
 local banc = nil       -- la partie en cours
@@ -528,6 +530,15 @@ UserInputService.InputBegan:Connect(function(entree, dejaPris)
 		-- et ca se complique
 		b.periode = math.max(PERIODE_MIN, b.periode * ACCELERE)
 		b.largeur = math.max(ZONE_MIN, b.largeur * RETRECIT)
+	elseif b.reps >= NIVEAU_DANGER then
+		-- rate apres le niveau 5 : tout est a refaire
+		b.reps, b.periode, b.largeur = 0, PERIODE0, ZONE0
+		evenementBanc:FireServer("zero")
+		texteBarres.Text = "BARRES : 0"
+		texteResultat.Text = "RATE ! RETOUR A ZERO"
+		texteResultat.TextColor3 = Color3.fromRGB(255, 70, 50)
+		nouvelleZone(b)
+		b.bloque = os.clock() + PENALITE * 2
 	else
 		texteResultat.Text = "RATE !"
 		texteResultat.TextColor3 = Color3.fromRGB(255, 70, 50)
