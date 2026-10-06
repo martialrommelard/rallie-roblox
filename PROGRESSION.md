@@ -492,6 +492,34 @@ COURSE ».
 |---|---|---|
 | Écran de test laissé en place | pendant le Play, mon écran de test (bleu) était posé par-dessus celui du jeu | enlever ses tests avant de faire essayer |
 
+### 2026-10-06 (suite) — la salle de sport, machine par machine
+
+Chaque machine = un **générateur** (lancé une fois en Edit, il remplace
+l'ancienne) + sa partie dans `SalleSportServeur` + sa partie dans
+`Exercices.client`. Toutes les mesures se **déduisent de mon avatar**
+(cuisse 0,96, mollet 0,57, bras 1,67…), et les membres se posent avec **le
+triangle d'Al-Kashi** : on connaît l'épaule (ou la hanche), la cible (la
+poignée, la pédale) et les deux longueurs → on trouve le coude (ou le genou).
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| « améliore le vélo, mieux positionné, un truc propre » | `VeloAppartement.lua` : vrai vélo (roue d'inertie, manivelles, guidon) ; les pédales tournent, les pieds les suivent, les mains tiennent le guidon |
+| « améliore les tapis, différentes vitesses » | `TapisDeCourse.lua` : 3 tapis à 6 / 14 / 22, boutons Q/E (6 → 26), bande qui défile, ma vitesse suit le tapis |
+| « la traction : plus on monte plus c'est dur, cliquer vite, une jauge » puis « plus simple, ça se complique petit à petit, fais-en 2 sur l'autre tapis » | `BarreTraction.lua` : 2 barres sur la moquette d'à côté ; chaque clic fait monter, la jauge redescend ; +12 % plus dur à chaque traction ; record par barre |
+| « le truc entre les tapis et le punching-ball : une jauge qui monte et descend, au bon moment » puis « dès le niveau 5, si on rate, on recommence à zéro » | `BancMusculation.lua` : développé couché, on s'allonge ; cliquer quand le curseur est dans le vert ; curseur plus rapide et zone plus petite à chaque barre ; dès 5 barres, raté = zéro |
+| « fais que les haltères on peut les utiliser » | `RatelierHalteres.lua` : 3 paires (5 / 10 / 20 kg) ; E = prendre / reposer ; clic = curl |
+| « un dernier machin, c'est toi qui choisis » | `Rameur.lua` : course de 250 m, Q / D en alternance, le siège glisse, record |
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Haltères : le bras sautait | un outil avec `Handle` fait jouer « bras tendu » à Roblox, relancé à chaque image | `RequiresHandle = false` et souder soi-même |
+| Haltères : les disques volaient | soudés **avant** d'être déplacés, ils gardaient leur écart avec le râtelier | déplacer toutes les pièces, **puis** souder |
+| « je peux pas me mettre dessus » | j'installais pendant qu'il était en Play | Stop, et ne pas relancer avant « c'est installé » |
+
+⚠️ À vérifier en jouant : le rameur et le vélo n'ont pas encore été essayés
+« pour de vrai » par moi (seulement mesurés). Les records des machines sont
+gardés **le temps du serveur** (pas de DataStore).
+
 ---
 
 ## Points à revoir / difficultés
