@@ -7,7 +7,23 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-10-05
+### État au 2026-10-06
+
+**La salle de sport est COMPLÈTE et JOUABLE ✅ (2026-10-06)** — chaque machine
+a son jeu, et les membres du personnage sont posés par le calcul (Al-Kashi) :
+- **vélos** : on pédale, les pieds suivent les pédales ;
+- **3 tapis** à 6 / 14 / 22, boutons « moins vite » (touche **A** sur AZERTY) / « plus vite » (E) ;
+- **banc de développé couché** : cliquer quand le curseur est dans le vert ;
+  ça se complique, et dès 5 barres, raté = retour à zéro ;
+- **haltères** : 3 paires (5 / 10 / 20 kg), E = prendre / reposer, clic = curl ;
+- sur la moquette d'à côté : **2 barres de traction** (cliquer vite) et
+  **2 rameurs** (course de 250 m, un clic = un coup de rame) ;
+- la **paroi de verre** refaite : verrière jusqu'au plafond, enseigne « SALLE DE SPORT ».
+Chaque machine = un générateur dans `scripts/` + sa partie dans
+`SalleSportServeur` et `Exercices.client`. Records gardés le temps du serveur.
+Déroulé complet : [`lecons/07-discussion-2026-10-06.md`](lecons/07-discussion-2026-10-06.md).
+
+⚠️ **Mon clavier est AZERTY** : Roblox lit la PLACE des touches, mon « Q » est sa touche A.
 
 **Les bureaux de la direction de course sont VIVANTS ✅ (2026-10-05)** —
 s'asseoir à un bureau ouvre un menu (caméras de la piste, pilotes en direct
@@ -508,13 +524,21 @@ poignée, la pédale) et les deux longueurs → on trouve le coude (ou le genou)
 | « la traction : plus on monte plus c'est dur, cliquer vite, une jauge » puis « plus simple, ça se complique petit à petit, fais-en 2 sur l'autre tapis » | `BarreTraction.lua` : 2 barres sur la moquette d'à côté ; chaque clic fait monter, la jauge redescend ; +12 % plus dur à chaque traction ; record par barre |
 | « le truc entre les tapis et le punching-ball : une jauge qui monte et descend, au bon moment » puis « dès le niveau 5, si on rate, on recommence à zéro » | `BancMusculation.lua` : développé couché, on s'allonge ; cliquer quand le curseur est dans le vert ; curseur plus rapide et zone plus petite à chaque barre ; dès 5 barres, raté = zéro |
 | « fais que les haltères on peut les utiliser » | `RatelierHalteres.lua` : 3 paires (5 / 10 / 20 kg) ; E = prendre / reposer ; clic = curl |
-| « un dernier machin, c'est toi qui choisis » | `Rameur.lua` : course de 250 m, Q / D en alternance, le siège glisse, record |
+| « un dernier machin, c'est toi qui choisis » | `Rameur.lua` : course de 250 m, le siège glisse, record |
+| « prends toute la place du tapis », « t'en fais deux » | 2 barres de traction dans les coins du fond, 2 rameurs au milieu (course à deux) |
+| « ça marche pas, j'appuie sur Q/D », « fais avec le clic de la souris » | clavier AZERTY : mon « Q » = touche A pour Roblox ; maintenant **un clic = un coup de rame** |
+| « la façade de la salle de sport, fais-la propre » → « je parlais du mur en verre » | `ParoiSalleSport.lua` : verrière jusqu'au plafond, montants, portail et enseigne, bande dépolie, plinthe (la déco du mur extérieur, faite par erreur, est enlevée) |
+
+> Le déroulé complet de la séance, mes demandes mot pour mot :
+> [`lecons/07-discussion-2026-10-06.md`](lecons/07-discussion-2026-10-06.md).
 
 | L'erreur | Ce qui se passait | La règle |
 |---|---|---|
 | Haltères : le bras sautait | un outil avec `Handle` fait jouer « bras tendu » à Roblox, relancé à chaque image | `RequiresHandle = false` et souder soi-même |
 | Haltères : les disques volaient | soudés **avant** d'être déplacés, ils gardaient leur écart avec le râtelier | déplacer toutes les pièces, **puis** souder |
 | « je peux pas me mettre dessus » | j'installais pendant qu'il était en Play | Stop, et ne pas relancer avant « c'est installé » |
+| Q/D ne marchaient pas | Roblox garde D pour marcher, et sur AZERTY mon « Q » est la touche A | ne pas filtrer les touches « déjà prises » ; préférer le clic |
+| La mauvaise façade | « la façade » = la paroi de verre, pas le mur de dehors | quand un mot peut désigner 2 choses, demander |
 
 ⚠️ À vérifier en jouant : le rameur et le vélo n'ont pas encore été essayés
 « pour de vrai » par moi (seulement mesurés). Les records des machines sont
