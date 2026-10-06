@@ -256,6 +256,22 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 
+		-- CHASSEUR (la tomate volante de l epicerie) : il est sorti de sa
+		-- voiture pour voler. Sa course a lui s arrete, comme un elimine :
+		-- sinon il gagnerait en volant tout droit jusqu a la ligne.
+		if joueur:GetAttribute("Chasseur") and not fini[joueur] then
+			fini[joueur] = true
+			local temps = tempsDeCourse()
+			majTours:FireClient(joueur, passages[joueur] or 0, NB_TOURS, "elimine", temps)
+			print(joueur.Name .. " devient chasseur (tomate volante)")
+			table.insert(elimines, {nom = "🍅 " .. joueur.Name, tours = math.max(0, (passages[joueur] or 0) - 1)})
+			afficherResultats()
+			if tousOntFini() then
+				workspace:SetAttribute("CourseEnCours", false)
+				print("Course terminee : il ne reste personne en piste")
+			end
+		end
+
 		if torse and not fini[joueur] then
 			-- La position du joueur, vue depuis la ligne.
 			local p = ligne.CFrame:PointToObjectSpace(torse.Position)

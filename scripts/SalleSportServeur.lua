@@ -246,7 +246,7 @@ task.spawn(function()
 			local v = t.modele:GetAttribute("Vitesse") or 14
 			if coureur then
 				surUnTapis[coureur] = true
-				marcheNormale[coureur] = marcheNormale[coureur] or humCoureur.WalkSpeed
+				marcheNormale[coureur] = humCoureur:GetAttribute("VitesseBase") or game:GetService("StarterPlayer").CharacterWalkSpeed
 				humCoureur.WalkSpeed = math.max(marcheNormale[coureur], v + 4)    -- 4 de marge pour avancer
 				if t.coureur ~= coureur then t.coureur, t.km = coureur, 0 end
 				t.km += v / 3600 * 0.25                  -- v km/h pendant 0,25 seconde
@@ -260,7 +260,7 @@ task.spawn(function()
 		for j, vitesse in pairs(marcheNormale) do
 			if not surUnTapis[j] then
 				local hum = j.Character and j.Character:FindFirstChildOfClass("Humanoid")
-				if hum then hum.WalkSpeed = vitesse end
+				if hum then hum.WalkSpeed = hum:GetAttribute("VitesseBase") or vitesse end
 				marcheNormale[j] = nil
 			end
 		end

@@ -7,7 +7,24 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
-### État au 2026-10-06
+### État au 2026-10-06 (fin d'après-midi)
+
+**L'ÉPICERIE est ouverte ✅ (2026-10-06)** — dans la moitié côté porte du
+bâtiment de la salle de sport (on la traverse par l'allée verte pour aller
+faire du sport). Générateur `scripts/Epicerie.lua` (lancé en Edit) ; en Play :
+`EpicerieServeur` (serveur), `Epicerie.client` (écran), `Produits` (la liste).
+- **pièces** 🪙 : 10 / 5 / 3 pour le podium, 1 si on finit, 0 si éliminé ;
+  sauvegardées (DataStore) ; **moi, le créateur : illimitées** ;
+- **Boisson Flash** (vitesse 70, 30 s), **Bonbon ressort** (saut, 30 s),
+  **Glace** (45 s de boules de glace, touché = congelé 4 s, même en voiture),
+  **Tomate volante** (voler jusqu'à la fin de la course ; en course = chasseur 🍅,
+  sa course s'arrête), **Pomme** (pour le fun) ;
+- le vol : **pose Superman** en avançant, **lévitation** à l'arrêt, vitesse 90.
+- Pas encore fait : produits salle de sport et voiture ; prix à revoir.
+Déroulé complet : [`lecons/08-discussion-2026-10-06-epicerie.md`](lecons/08-discussion-2026-10-06-epicerie.md).
+⚠️ L'épicerie **modifie la place** : sans `Ctrl+S`, elle est perdue.
+⚠️ Pour essayer la sauvegarde des pièces dans Studio : Paramètres du jeu →
+Sécurité → « Enable Studio Access to API Services ».
 
 **La salle de sport est COMPLÈTE et JOUABLE ✅ (2026-10-06)** — chaque machine
 a son jeu, et les membres du personnage sont posés par le calcul (Al-Kashi) :
@@ -119,6 +136,10 @@ un joueur s'assoit
 | `StarterPlayerScripts` | `Arcade` | **LocalScript** : le jeu de course 3D sur l'écran des simulateurs |
 | `StarterPlayerScripts` | `Exercices` | **LocalScript** : bras et jambes qui bougent (banc, vélo, coups de poing) |
 | `StarterPlayerScripts` | `LumiereSpawn` | **LocalScript** : un peu moins de lumière quand on est sur le spawn |
+| `ServerScriptService` | `EpicerieServeur` | pièces (gains, sauvegarde), achats, manger, boosts, vol, boules de glace, caissière |
+| `StarterPlayerScripts` | `Epicerie` | **LocalScript** : pièces et boosts à l'écran, bouton VOLER, le vol et sa pose, viser la glace |
+| `ReplicatedStorage` | `Produits` | **ModuleScript** : LA liste des produits (prix, effets, durées) |
+| (à lancer en Edit) | `Epicerie.lua` | le générateur du magasin (copie dans `ServerStorage/Outils/Epicerie`) |
 | (à lancer en Edit) | `SalleSousSpawn.lua`, `SalleSport.lua`, `MachineSimulateur.lua` | les générateurs du sous-sol, de la salle de sport et des simulateurs |
 
 Les trois scripts serveur se parlent par **un seul attribut** :
@@ -543,6 +564,32 @@ poignée, la pédale) et les deux longueurs → on trouve le coude (ou le genou)
 ⚠️ À vérifier en jouant : le rameur et le vélo n'ont pas encore été essayés
 « pour de vrai » par moi (seulement mesurés). Les records des machines sont
 gardés **le temps du serveur** (pas de DataStore).
+
+### 2026-10-06 (après-midi) — l'épicerie, les pièces et les pouvoirs
+
+L'autre moitié du bâtiment devient une **épicerie**. Il n'y avait pas d'argent
+dans le jeu : on a créé les **pièces** (gagnées seulement en course). Tout part
+d'**une seule liste**, le ModuleScript `Produits` : le générateur, le serveur
+et l'écran la lisent.
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| « une épicerie où on achète de la nourriture qui donne des boosts, en pouvant passer dans la salle de sport » | `Epicerie.lua` : allée libre jusqu'au passage (vérifiée par le calcul), caisse et caissière, fruits, glaces, 2 rayons, frigo |
+| « la vitesse rapide comme Flash » | Boisson Flash : vitesse 70 et traînée de lumière |
+| « la tomate : voler pendant une course entière » | Tomate volante : vol jusqu'à la fin de la course ; en course, on devient **chasseur** (sa course s'arrête) |
+| « la glace : jeter des boules qui congèlent, même quelqu'un en course » puis « 4 secondes » | 45 s de boules (clic) ; touché = congelé 4 s dans un bloc de glace, la voiture s'arrête |
+| « que moi, le créateur, j'aie des pièces illimitées » | `joueur.UserId == game.CreatorId` : 999 999, achats gratuits, jamais sauvegardé |
+| « 1er 10, 2e 5, 3e 3, 1 si tu finis, sinon 0 ; retrouver ses pièces en revenant » | `GAINS_PLACE` ; DataStore en quittant + toutes les minutes |
+| « que le vol ressemble à quelque chose », « on dirait que je nage », « comme Superman » | 2 poses calculées (Superman / lévitation), vitesse 90, caméra, traînées de vent |
+
+> Le déroulé complet, mes demandes mot pour mot :
+> [`lecons/08-discussion-2026-10-06-epicerie.md`](lecons/08-discussion-2026-10-06-epicerie.md).
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| « Pièces illimitées tout le temps » compris comme « dans Studio » | je voulais, moi, être le seul à en avoir | redemander **pour qui** |
+| Le bras ne se tendait pas en vol | `Exercices.client` remettait les bras au repos **à chaque image** et écrasait la pose | 2 scripts sur la même articulation s'écrasent : **mesurer** (la main était 1,6 derrière) pour trouver lequel |
+| Une animation « de nage » pour voler | ça se voyait que c'était de la nage | poser le corps nous-mêmes, comme pour les vélos |
 
 ---
 

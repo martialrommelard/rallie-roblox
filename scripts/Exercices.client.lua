@@ -881,6 +881,7 @@ RunService.RenderStepped:Connect(function(dt)
 	if traction then if perso then poserTraction(perso, dt) else finirTraction() end return end
 	if banc then if perso then poserBanc(perso, dt) else finirBanc() end return end
 	if not hum or not j or vus[perso] then return end
+	if joueur:GetAttribute("EnVol") then return end   -- en vol : c est l epicerie qui pose les bras (pose Superman)
 	-- par defaut : rien (on remet tout comme l animation de Roblox le fait)
 	local epD, epG, coD, coG = 0, 0, 0, 0
 	if coup then
