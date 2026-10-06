@@ -14,6 +14,7 @@
 --    BARRE  on s accroche ; chaque clic fait monter, la jauge redescend
 --           de plus en plus vite : menton a la barre = une traction
 --    HALTERES  chaque clic = un curl, bras droit puis bras gauche
+--    RAMEUR Q / D en alternance : la course ; le siege glisse, on rame
 --  Le velo marche pour TOUS les pilotes qu on voit ; le banc et le sac,
 --  seulement pour nous.
 -- =========================================================
@@ -602,6 +603,194 @@ local function poserBanc(perso, dt)
 	poser(j, "Waist", 0)
 end
 
+-- ---- LE RAMEUR : la course, et l animation de TOUS les rameurs ----
+-- Q et D en ALTERNANCE : chaque bonne alternance = un coup de rame
+-- (IMPULSION). Le bateau ralentit tout seul (FREIN). Le coup de rame
+-- (le siege qui glisse, le buste, les bras) avance d autant plus vite
+-- qu on va vite. Un coup = 40 % de "tirage" rapide, 60 % de retour lent.
+local IMPULSION, VMAX = 0.9, 9          -- m/s gagnes par coup ; vitesse maxi
+local FREIN_V, FREIN_0 = 0.35, 0.25     -- on perd 35 % de sa vitesse par seconde, plus 0,25 m/s
+local evenementRameur = game:GetService("ReplicatedStorage"):WaitForChild("Rameur", 10)
+local rameurs = {}       -- siege -> {pieces, phase}
+local course = nil       -- MA course : {v, d, t0, derniere, fini, envoi}
+
+local function trouverRameurs()
+	for _, m in ipairs(salle:GetChildren()) do
+		local siege = m.Name == "Rameur" and m:FindFirstChild("SiegeRameur")
+		if siege and not rameurs[siege] then
+			local plaques = {}
+			for _, p in ipairs(m:GetChildren()) do
+				if p.Name == "ReposePieds" then table.insert(plaques, p) end
+			end
+			rameurs[siege] = {modele = m, siege0 = siege.CFrame, poignee = m:FindFirstChild("PoigneeRameur"),
+				chaine = m:FindFirstChild("ChaineRameur"), sortie = m:FindFirstChild("SortieChaine"),
+				glisse = m:GetAttribute("Glisse") or 0.9, plaques = plaques, phase = 0, s = 1}
+		end
+	end
+	for siege in pairs(rameurs) do
+		if not siege:IsDescendantOf(workspace) then rameurs[siege] = nil end
+	end
+end
+task.spawn(function()
+	while true do trouverRameurs() task.wait(2) end      -- streaming : il arrive quand on s approche
+end)
+
+local guiR = Instance.new("ScreenGui")
+guiR.Name = "CourseRameur"
+guiR.ResetOnSpawn = false
+guiR.Enabled = false
+guiR.Parent = joueur:WaitForChild("PlayerGui")
+local barreR = Instance.new("Frame")
+barreR.AnchorPoint = Vector2.new(0.5, 0)
+barreR.Position = UDim2.new(0.5, 0, 0, 70)
+barreR.Size = UDim2.fromOffset(420, 22)
+barreR.BackgroundColor3 = Color3.fromRGB(8, 14, 26)
+barreR.BorderSizePixel = 0
+barreR.Parent = guiR
+Instance.new("UICorner", barreR).CornerRadius = UDim.new(0, 8)
+local avanceR = Instance.new("Frame")
+avanceR.Size = UDim2.fromScale(0, 1)
+avanceR.BackgroundColor3 = Color3.fromRGB(0, 225, 255)
+avanceR.BorderSizePixel = 0
+avanceR.Parent = barreR
+Instance.new("UICorner", avanceR).CornerRadius = UDim.new(0, 8)
+local function etiquetteR(y, h, couleur)
+	local l = etiquette(UDim2.new(0.5, 260, 0, y), UDim2.fromOffset(520, h), "", couleur)
+	l.Parent = guiR
+	return l
+end
+local texteCourse  = etiquetteR(118, 36, Color3.new(1, 1, 1))
+local texteConsR   = etiquetteR(160, 30, Color3.fromRGB(255, 205, 60))
+
+local function nouvelleCourse()
+	course = {v = 0, d = 0, t0 = nil, derniere = nil, fini = nil, envoi = 0}
+end
+UserInputService.InputBegan:Connect(function(entree, dejaPris)
+	if not course or dejaPris then return end
+	local k = entree.KeyCode
+	local touche = (k == Enum.KeyCode.Q or k == Enum.KeyCode.Left) and "Q" or (k == Enum.KeyCode.D or k == Enum.KeyCode.Right) and "D" or nil
+	if not touche then return end
+	if course.fini then
+		if os.clock() - course.fini > 2 then nouvelleCourse() end   -- on rejoue
+		return
+	end
+	if touche ~= course.derniere then
+		course.derniere = touche
+		course.v = math.min(VMAX, course.v + IMPULSION)
+		course.t0 = course.t0 or os.clock()               -- le chrono part au premier coup
+	end
+end)
+
+-- la pose d un rameur, pour s (0 = jambes pliees, en avant ; 1 = fin du coup, en arriere)
+local function poserRameur(perso, r)
+	local j = jointsDe(perso)
+	local hum = perso:FindFirstChildOfClass("Humanoid")
+	local LT, UT = perso:FindFirstChild("LowerTorso"), perso:FindFirstChild("UpperTorso")
+	if not (j and hum and LT and UT) then return end
+	local animateur = hum:FindFirstChildOfClass("Animator")
+	if animateur then
+		for _, piste in ipairs(animateur:GetPlayingAnimationTracks()) do piste:Stop(0) end
+	end
+	poserRad(j, "Waist", math.rad(-25 + 40 * r.s))       -- penche en avant (-25) puis en arriere (+15)
+	for _, cote in ipairs({"Right", "Left"}) do
+		-- les jambes : la cheville au-dessus de la plaque du repose-pieds (le triangle)
+		local cuisse, mollet, pied = perso:FindFirstChild(cote .. "UpperLeg"), perso:FindFirstChild(cote .. "LowerLeg"), perso:FindFirstChild(cote .. "Foot")
+		local hanche = LT[cote .. "HipRigAttachment"]
+		local plaque = nil
+		for _, p in ipairs(r.plaques) do
+			if not plaque or (p.Position - hanche.WorldPosition).Magnitude < (plaque.Position - hanche.WorldPosition).Magnitude then plaque = p end
+		end
+		if cuisse and mollet and pied and plaque then
+			local a = (cuisse[cote .. "KneeRigAttachment"].Position - cuisse[cote .. "HipRigAttachment"].Position).Magnitude
+			local b = (mollet[cote .. "AnkleRigAttachment"].Position - mollet[cote .. "KneeRigAttachment"].Position).Magnitude
+			local h = (pied[cote .. "AnkleRigAttachment"].Position - pied[cote .. "FootAttachment"].Position).Magnitude
+			local cible = plaque.Position + plaque.CFrame.UpVector * (plaque.Size.Y / 2 + h)
+			local tCuisse, tMollet = triangle(LT.CFrame * j[cote .. "Hip"].base, hanche.WorldPosition, cible, a, b, true)
+			poserRad(j, cote .. "Hip", tCuisse)
+			poserRad(j, cote .. "Knee", tMollet - tCuisse)
+			poserRad(j, cote .. "Ankle", -tMollet)
+		end
+		-- les bras : les mains sur la poignee
+		local haut, avant, main = perso:FindFirstChild(cote .. "UpperArm"), perso:FindFirstChild(cote .. "LowerArm"), perso:FindFirstChild(cote .. "Hand")
+		local g = r.modele:FindFirstChild(cote == "Right" and "PoigneeD" or "PoigneeG")
+		if haut and avant and main and g then
+			local vHaut = haut[cote .. "ElbowRigAttachment"].Position - haut[cote .. "ShoulderRigAttachment"].Position
+			local vBas = (avant[cote .. "WristRigAttachment"].Position - avant[cote .. "ElbowRigAttachment"].Position)
+				+ (main[cote .. "GripAttachment"].Position - main[cote .. "WristRigAttachment"].Position)
+			local tHaut, tBas = triangle(UT.CFrame * j[cote .. "Shoulder"].base, UT[cote .. "ShoulderRigAttachment"].WorldPosition,
+				g.Position, longueurCote(vHaut), longueurCote(vBas), false)
+			local sh = tHaut - angleCote(vHaut)
+			poserRad(j, cote .. "Shoulder", sh)
+			poserRad(j, cote .. "Elbow", tBas - sh - angleCote(vBas))
+		end
+	end
+end
+
+local function lisse(x) return x * x * (3 - 2 * x) end
+local function animerRameurs(dt, moi)
+	local poses = {}
+	for siege, r in pairs(rameurs) do
+		local hum = siege.Occupant
+		local perso = hum and hum.Parent
+		local v = 0
+		if perso and perso == moi and course then v = course.v
+		elseif perso then v = siege:GetAttribute("Vitesse") or 0 end
+		if perso then
+			-- le coup de rame avance plus vite quand on va vite
+			r.phase = (r.phase + dt * (0.15 + v * 0.11)) % 1
+			local p = r.phase
+			r.s = p < 0.4 and lisse(p / 0.4) or 1 - lisse((p - 0.4) / 0.6)
+		else
+			r.phase, r.s = 0, 1
+		end
+		-- le siege glisse (-Z = vers les pieds), la poignee suit les bras, la chaine s etire
+		local seatZ = -r.glisse * (1 - r.s)
+		siege.CFrame = r.siege0 * CFrame.new(0, 0, seatZ)
+		if r.poignee then
+			local pos = r.siege0 * Vector3.new(0, 1.05 + 0.1 * r.s, seatZ - (0.45 + 0.75 * (1 - r.s)))
+			if not perso then pos = r.sortie.Position + (r.siege0.LookVector * -0.3) end          -- au repos, contre le volant
+			r.poignee.CFrame = r.siege0.Rotation + pos
+			if r.chaine and r.sortie then
+				local a, b = r.sortie.Position, pos
+				r.chaine.Size = Vector3.new(0.05, 0.05, math.max(0.05, (b - a).Magnitude))
+				r.chaine.CFrame = CFrame.lookAt((a + b) / 2, b)
+			end
+		end
+		if perso then
+			poserRameur(perso, r)
+			poses[perso] = true
+		end
+	end
+	return poses
+end
+
+-- MA course : la vitesse, la distance, le chrono, l ecran
+local function majCourse(dt, perso)
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	local assis = hum and hum.SeatPart and hum.SeatPart.Name == "SiegeRameur" and hum.SeatPart or nil
+	if assis and not course then nouvelleCourse() end
+	if not assis then course = nil guiR.Enabled = false return end
+	guiR.Enabled = true
+	local c = course
+	local distance = assis.Parent:GetAttribute("Distance") or 250
+	c.v = math.max(0, c.v - (FREIN_V * c.v + FREIN_0) * dt)
+	if not c.fini then c.d = math.min(distance, c.d + c.v * dt) end
+	local temps = c.t0 and ((c.fini or os.clock()) - c.t0) or 0
+	if c.d >= distance and not c.fini then
+		c.fini = os.clock()
+		temps = c.fini - c.t0
+		if evenementRameur then evenementRameur:FireServer("arrivee", temps) end
+	end
+	avanceR.Size = UDim2.fromScale(c.d / distance, 1)
+	texteCourse.Text = string.format("%d / %d m   ·   %d:%05.2f   ·   %.1f m/s", math.floor(c.d), distance, temps // 60, temps % 60, c.v)
+	texteConsR.Text = c.fini and "ARRIVEE ! (Q ou D pour rejouer, Espace pour descendre)" or (c.t0 and "Q / D en alternance, le plus vite possible !" or "Appuie sur Q puis D pour partir")
+	c.envoi += dt
+	if c.envoi > 0.25 and evenementRameur then
+		c.envoi = 0
+		evenementRameur:FireServer("vitesse", c.v)
+	end
+end
+
 -- ---- MOI : le sac ----
 -- les coups de poing
 local coup = nil       -- {bras = "Right"/"Left", t0}
@@ -666,6 +855,9 @@ RunService.RenderStepped:Connect(function(dt)
 			vus[hum.Parent] = true
 		end
 	end
+	-- LES RAMEURS : le siege glisse, la poignee et la chaine bougent, on pose le rameur
+	for perso in pairs(animerRameurs(dt, joueur.Character)) do vus[perso] = true end
+	majCourse(dt, joueur.Character)
 	for perso in pairs(surLeVelo) do
 		if not vus[perso] then relacher(perso) end
 	end
