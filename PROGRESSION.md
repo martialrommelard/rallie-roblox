@@ -9,8 +9,13 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ### État au 2026-10-06 (fin d'après-midi)
 
-💡 **Idées pour la suite** : [`IDEES.md`](IDEES.md) (à corriger d'abord : le
-bouton « Se lever » des bureaux).
+🔴 **RAPPEL — prochaine séance de développement : commencer par la
+PRIORITÉ 1 de [`IDEES.md`](IDEES.md)**, avant toute nouvelle idée :
+1. **Checkpoints** (obligatoire, pas encore fait) ;
+2. **Test à plusieurs joueurs** (places, podium) ;
+3. **Bouton « Abandonner »** (ou temps limite).
+Puis les bugs (bouton « Se lever » des bureaux, son moteur, erreur A-Chassis).
+Le fantôme et les temps vert / rouge iront dans le **mode entraînement**.
 
 **L'ÉPICERIE est ouverte ✅ (2026-10-06)** — dans la moitié côté porte du
 bâtiment de la salle de sport (on la traverse par l'allée verte pour aller
