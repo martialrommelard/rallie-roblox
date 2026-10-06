@@ -8,6 +8,7 @@
 --    SACS     un bouton "Frapper" : le sac part sous le coup
 --    TAPIS    chacun sa vitesse, la console affiche le coureur et sa distance
 --    BARRES   de traction : on compte, chaque barre a son record
+--    HALTERES on prend une paire au ratelier (un outil), on la repose
 -- =========================================================
 
 local Players           = game:GetService("Players")
@@ -327,5 +328,125 @@ evenementTraction.OnServerEvent:Connect(function(joueur, quoi, station)
 	majPanneau(station)
 end)
 Players.PlayerRemoving:Connect(lacher)
+
+-- =========================================================
+--  6. LES HALTERES (le modele RatelierHalteres : RatelierHalteres.lua)
+--  E devant une paire : on la prend. On COPIE les 2 haltères de la paire :
+--  la premiere devient la poignee (Handle) d un OUTIL, en main droite ; la
+--  seconde est soudee a la main gauche quand on sort l outil. La paire
+--  disparait du ratelier. E encore : on la repose (l outil disparait, la
+--  paire revient). Les curls (clic) sont faits chez le joueur (Exercices).
+-- =========================================================
+local ratelier = salle:FindFirstChild("RatelierHalteres")
+local outils = {}            -- paire -> l outil de celui qui l a prise
+
+-- une copie d une haltère, prete a etre tenue : rien d ancre, tout soude a la poignee
+local function copieTenue(haltere)
+	local copie = haltere:Clone()
+	local poignee = copie:FindFirstChild("Poignee")
+	for _, p in ipairs(copie:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored, p.CanCollide, p.Massless = false, false, true
+			p.Transparency = 0
+			if p ~= poignee then
+				local s = Instance.new("WeldConstraint")
+				s.Part0, s.Part1 = poignee, p
+				s.Parent = p
+				p.Parent = poignee
+			end
+		end
+	end
+	poignee.Parent = nil
+	copie:Destroy()
+	return poignee
+end
+local function montrer(paire, oui)
+	for _, h in ipairs(paire:GetChildren()) do
+		if h.Name == "Haltere" then
+			for _, p in ipairs(h:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = oui and 0 or 1 end
+			end
+		end
+	end
+end
+local function reposer(paire)
+	local outil = outils[paire]
+	outils[paire] = nil
+	if outil then outil:Destroy() end
+	paire:SetAttribute("Pris", nil)
+	montrer(paire, true)
+end
+local function prendre(joueur, paire)
+	local perso = joueur.Character
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	local main = perso and perso:FindFirstChild("RightHand")
+	local prise = main and main:FindFirstChild("RightGripAttachment")
+	if not (hum and prise) then return end
+	-- deja une paire en main ? on la repose d abord
+	for autre, outil in pairs(outils) do
+		if outil:GetAttribute("Joueur") == joueur.UserId then reposer(autre) end
+	end
+	local halteres = {}
+	for _, h in ipairs(paire:GetChildren()) do
+		if h.Name == "Haltere" then table.insert(halteres, h) end
+	end
+	local outil = Instance.new("Tool")
+	outil.Name = "Halteres"
+	outil.ToolTip = paire:GetAttribute("Poids") .. " kg"
+	outil.CanBeDropped = false
+	outil:SetAttribute("Poids", paire:GetAttribute("Poids"))
+	outil:SetAttribute("Duree", paire:GetAttribute("Duree"))
+	outil:SetAttribute("Joueur", joueur.UserId)
+	-- la poignee dans le sens de la main (de gauche a droite) : on annule la rotation de la prise
+	outil.Grip = prise.CFrame - prise.CFrame.Position
+	local poignee = copieTenue(halteres[1])
+	poignee.Name = "Handle"
+	poignee.Parent = outil
+	-- la 2e haltère, dans la main gauche, quand l outil est sorti
+	local gauche = nil
+	outil.Equipped:Connect(function()
+		local p = outil.Parent
+		local mainG = p and p:FindFirstChild("LeftHand")
+		local priseG = mainG and mainG:FindFirstChild("LeftGripAttachment")
+		if not priseG or not halteres[2] then return end
+		gauche = copieTenue(halteres[2])
+		gauche.Name = "HaltereGauche"
+		gauche.CFrame = mainG.CFrame * CFrame.new(priseG.Position)
+		local s = Instance.new("WeldConstraint")
+		s.Part0, s.Part1 = mainG, gauche
+		s.Parent = gauche
+		gauche.Parent = p
+	end)
+	outil.Unequipped:Connect(function()
+		if gauche then gauche:Destroy() gauche = nil end
+	end)
+	-- l outil disparait (repose, mort, joueur parti...) : la paire revient
+	outil.Destroying:Connect(function()
+		if gauche then gauche:Destroy() end
+		if outils[paire] == outil then
+			outils[paire] = nil
+			paire:SetAttribute("Pris", nil)
+			montrer(paire, true)
+		end
+	end)
+	outils[paire] = outil
+	paire:SetAttribute("Pris", joueur.UserId)
+	montrer(paire, false)
+	outil.Parent = joueur.Backpack
+	hum:EquipTool(outil)
+end
+if ratelier then
+	for _, paire in ipairs(ratelier:GetChildren()) do
+		local zone = paire.Name == "PaireHalteres" and paire:FindFirstChild("ZonePrise")
+		local prompt = zone and zone:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(joueur)
+				local pris = paire:GetAttribute("Pris")
+				if pris == joueur.UserId then reposer(paire)
+				elseif not pris then prendre(joueur, paire) end
+			end)
+		end
+	end
+end
 
 print("Salle de sport prete")

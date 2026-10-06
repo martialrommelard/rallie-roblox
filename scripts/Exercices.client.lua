@@ -13,6 +13,7 @@
 --    TAPIS  les rayures de la bande defilent a la vitesse du tapis
 --    BARRE  on s accroche ; chaque clic fait monter, la jauge redescend
 --           de plus en plus vite : menton a la barre = une traction
+--    HALTERES  chaque clic = un curl, bras droit puis bras gauche
 --  Le velo marche pour TOUS les pilotes qu on voit ; le banc et le sac,
 --  seulement pour nous.
 -- =========================================================
@@ -617,6 +618,39 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, qui)
 	end
 end)
 
+-- ---- MOI : les halteres ----
+-- On tient l outil "Halteres" (pris au ratelier). Chaque clic = un curl :
+-- un bras se plie puis redescend, droite puis gauche. La duree d un curl
+-- est un attribut de l outil (plus long quand c est lourd).
+local curl = nil       -- {bras, t0, duree}
+local brasCurl = "Left"
+local nbCurls = 0
+local guiH = Instance.new("ScreenGui")
+guiH.Name = "CompteurHalteres"
+guiH.ResetOnSpawn = false
+guiH.Enabled = false
+guiH.Parent = joueur:WaitForChild("PlayerGui")
+local texteCurls = etiquette(UDim2.new(0.5, 150, 1, -110), UDim2.fromOffset(300, 40), "", Color3.new(1, 1, 1))
+texteCurls.Parent = guiH
+local branches = setmetatable({}, {__mode = "k"})     -- les outils deja branches
+local function brancher(outil)
+	if branches[outil] or not (outil:IsA("Tool") and outil.Name == "Halteres") then return end
+	branches[outil] = true
+	nbCurls = 0
+	outil.Activated:Connect(function()
+		if curl then return end                         -- on attend que le curl d avant soit fini
+		brasCurl = (brasCurl == "Left") and "Right" or "Left"
+		curl = {bras = brasCurl, t0 = os.clock(), duree = outil:GetAttribute("Duree") or 0.8}
+		nbCurls += 1
+	end)
+end
+local function surveiller(perso)
+	perso.ChildAdded:Connect(brancher)
+	for _, c in ipairs(perso:GetChildren()) do brancher(c) end
+end
+if joueur.Character then surveiller(joueur.Character) end
+joueur.CharacterAdded:Connect(surveiller)
+
 local surLeVelo = {}     -- perso -> true : ceux qu on a poses sur un velo a l image d avant
 
 RunService.RenderStepped:Connect(function(dt)
@@ -654,6 +688,29 @@ RunService.RenderStepped:Connect(function(dt)
 			local bosse = math.sin(math.pi * k)    -- 0 -> 1 -> 0 : le bras part et revient
 			if coup.bras == "Right" then epD, coD = 90 * bosse, -10 * bosse else epG, coG = 90 * bosse, -10 * bosse end
 		end
+	end
+	-- les halteres en main : les bras le long du corps (on coupe le "bras tendu" de l outil), et les curls
+	local outil = perso:FindFirstChild("Halteres")
+	guiH.Enabled = outil ~= nil
+	if outil then
+		texteCurls.Text = string.format("CURLS : %d · %d kg", nbCurls, outil:GetAttribute("Poids") or 0)
+		local animateur = hum:FindFirstChildOfClass("Animator")
+		if animateur then
+			for _, piste in ipairs(animateur:GetPlayingAnimationTracks()) do
+				if piste.Name == "ToolNoneAnim" then piste:Stop(0) end
+			end
+		end
+		if curl then
+			local k = (os.clock() - curl.t0) / curl.duree
+			if k >= 1 then
+				curl = nil
+			else
+				local bosse = math.sin(math.pi * k)    -- 0 -> 1 -> 0 : l avant-bras monte et redescend
+				if curl.bras == "Right" then epD, coD = 15 * bosse, 130 * bosse else epG, coG = 15 * bosse, 130 * bosse end
+			end
+		end
+	else
+		curl = nil
 	end
 	poser(j, "RightShoulder", epD) poser(j, "LeftShoulder", epG)
 	poser(j, "RightElbow", coD) poser(j, "LeftElbow", coG)
