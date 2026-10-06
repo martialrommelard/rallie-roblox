@@ -1,21 +1,16 @@
 -- =========================================================
---  LA SALLE DE SPORT ET LES SIMULATEURS QUI MARCHENT  (cote SERVEUR)
+--  LA SALLE DE SPORT QUI MARCHE  (cote SERVEUR)
 --  A placer dans ServerScriptService. Les objets sont construits par
 --  SalleSport.lua (dans ZoneSpawn/SalleSport).
 --
 --    BANC     assis : la barre monte et descend, on compte les repetitions
 --    VELOS    assis : le pedalier tourne, les kilometres defilent
---    SIMULATEURS  des BORNES D ARCADE : on reste assis et on joue sur l ecran
---             (un jeu de course vu de dessus, sur le vrai trace). Le jeu est
---             dans le LocalScript Arcade ; ici, on recopie la partie pour que
---             tout le monde la voie, et on garde le record.
 --    SACS     un bouton "Frapper" : le sac part sous le coup
 --    TAPIS    la console affiche le coureur et sa distance
 -- =========================================================
 
 local Players           = game:GetService("Players")
 local TweenService      = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local zone    = workspace:WaitForChild("ZoneSpawn")
 local salle   = zone:WaitForChild("SalleSport")
@@ -93,120 +88,7 @@ for _, selle in ipairs(salle:GetChildren()) do
 end
 
 -- =========================================================
---  3. LES SIMULATEURS : des BORNES D ARCADE
---  On reste ASSIS au simulateur et on joue SUR SON ECRAN : un jeu de course
---  vu de dessus, sur le vrai trace du circuit. Le jeu tourne chez le joueur
---  (LocalScript Arcade) ; il envoie au serveur ou en est sa voiture, et le
---  serveur la recopie dans des attributs du siege : comme ca, TOUS les
---  joueurs voient la partie sur l ecran de la borne.
--- =========================================================
-local arcade = ReplicatedStorage:FindFirstChild("Arcade") or Instance.new("RemoteEvent")
-arcade.Name = "Arcade"
-arcade.Parent = ReplicatedStorage
-
-local TOUR_MINI = 20       -- un tour en moins de 20 s, c est de la triche
-
-local function enTexte(t)
-	return string.format("%d:%05.2f", math.floor(t / 60), t % 60)
-end
-
-local record = nil          -- {temps, nom} : le meilleur tour fait sur les bornes
-local sieges = {}
-for _, siege in ipairs(salle:GetChildren()) do
-	if siege.Name == "SiegeSimulateur" then table.insert(sieges, siege) end
-end
-
--- l ecran "d attente" de la borne (quand personne ne joue)
-local function majEcran(siege)
-	local ecran = texteDe(plusProcheDe("EcranSimuCentre", siege.Position))
-	if not ecran then return end
-	local rec = record and ("\nRECORD : " .. enTexte(record.temps) .. " (" .. record.nom .. ")") or ""
-	local nom = siege:GetAttribute("PiloteNom")
-	ecran.Text = "SIMULATEUR " .. (siege:GetAttribute("Numero") or "") ..
-		(nom and ("\nEN JEU : " .. nom) or "\nASSIEDS-TOI POUR JOUER") .. rec
-end
-
-local function siegeDe(joueur)
-	for _, s in ipairs(sieges) do
-		local hum = s.Occupant
-		if hum and Players:GetPlayerFromCharacter(hum.Parent) == joueur then return s end
-	end
-end
-
-for _, siege in ipairs(sieges) do
-	majEcran(siege)
-	siege:GetPropertyChangedSignal("Occupant"):Connect(function()
-		local joueur = joueurAssis(siege)
-		siege:SetAttribute("Pilote", joueur and joueur.UserId or nil)
-		siege:SetAttribute("PiloteNom", joueur and joueur.DisplayName or nil)
-		for _, k in ipairs({"X", "Z", "A", "Chrono", "Tours"}) do siege:SetAttribute(k, nil) end
-		majEcran(siege)
-	end)
-end
-
--- LE CIRCUIT EN 3D, pour l ecran des bornes. A cause du streaming, l ecran du
--- joueur ne connait que le decor proche : c est le serveur qui envoie la
--- liste des pieces (position, taille, couleur), comme pour la minimap.
-local DOSSIERS_3D = {"Route", "Barrieres", "Tunnel", "Decor", "Montagne", "Talus", "Damier",
-	"Tremplin", "MarqueTremplin", "LigneDepart", "FeuxDepart"}
-local circuit3D = nil
-local function preparer3D()
-	local pieces = {}
-	local circuit = workspace:WaitForChild("Circuit")
-	for _, nom in ipairs(DOSSIERS_3D) do
-		for _, objet in ipairs(circuit:GetChildren()) do
-			if objet.Name == nom then
-				local liste = objet:IsA("BasePart") and {objet} or objet:GetDescendants()
-				for _, p in ipairs(liste) do
-					if p:IsA("BasePart") and p.Transparency < 0.9 then
-						table.insert(pieces, {
-							cf = p.CFrame, taille = p.Size, couleur = p.Color, matiere = p.Material,
-							forme = p:IsA("Part") and p.Shape or nil,
-							classe = (p:IsA("WedgePart") or p:IsA("CornerWedgePart")) and p.ClassName or "Part",
-							route = (nom == "Route"),
-						})
-					end
-				end
-			end
-		end
-	end
-	return pieces
-end
-local question3D = ReplicatedStorage:FindFirstChild("Circuit3D") or Instance.new("RemoteFunction")
-question3D.Name = "Circuit3D"
-question3D.Parent = ReplicatedStorage
-question3D.OnServerInvoke = function()
-	circuit3D = circuit3D or preparer3D()
-	return circuit3D
-end
-
-arcade.OnServerEvent:Connect(function(joueur, quoi, a, b, c, d, e)
-	-- le serveur ne croit pas l ecran : il faut etre ASSIS a une borne
-	local siege = siegeDe(joueur)
-	if not siege then return end
-	if quoi == "etat" then
-		-- ou est la voiture : x, z (en studs, sur le vrai circuit), angle, chrono, tours
-		if typeof(a) == "number" and typeof(b) == "number" and typeof(c) == "number" then
-			siege:SetAttribute("X", a)
-			siege:SetAttribute("Z", b)
-			siege:SetAttribute("A", c)
-			siege:SetAttribute("Chrono", typeof(d) == "number" and d or nil)
-			siege:SetAttribute("Tours", typeof(e) == "number" and e or nil)
-		end
-	elseif quoi == "tour" and typeof(a) == "number" and a >= TOUR_MINI and a < 600 then
-		if not record or a < record.temps then
-			record = {temps = a, nom = joueur.DisplayName}
-			-- le record, dans des attributs de la salle : tous les ecrans le lisent
-			salle:SetAttribute("RecordTemps", a)
-			salle:SetAttribute("RecordNom", joueur.DisplayName)
-			print(joueur.Name .. " bat le record des bornes : " .. enTexte(a))
-		end
-		for _, s in ipairs(sieges) do majEcran(s) end
-	end
-end)
-
--- =========================================================
---  4. LES SACS DE FRAPPE : on les FRAPPE pour de vrai
+--  3. LES SACS DE FRAPPE : on les FRAPPE pour de vrai
 --  Un bouton "Frapper" (touche E) quand on est a cote. Le serveur pousse le
 --  sac dans la direction du coup (ApplyImpulse), joue un bruit sourd et
 --  compte les coups. Le bras du joueur, lui, est anime chez lui (Exercices).
@@ -256,7 +138,7 @@ for _, sac in ipairs(salle:GetChildren()) do
 end
 
 -- =========================================================
---  5. LES TAPIS : la console dit qui court, et la distance
+--  4. LES TAPIS : la console dit qui court, et la distance
 -- =========================================================
 local dejaCouru = {}      -- tapis -> distance (km)
 task.spawn(function()

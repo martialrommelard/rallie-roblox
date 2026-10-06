@@ -10,9 +10,10 @@
 --      - 2 sacs de frappe suspendus (ils se balancent quand on les pousse)
 --      - 2 velos (assis : le pedalier tourne)
 --      - un ratelier d halteres
---    cote fond : 2 SIMULATEURS DE COURSE (siege baquet, volant, 3 ecrans)
+--    cote fond : la place des simulateurs (retires le 2026-10-06 : la 3D
+--      ne s affichait pas sur l ecran)
 --
---  Ce qui BOUGE (barre, pedaliers, simulateurs) est fait par le script
+--  Ce qui BOUGE (barre, pedaliers) est fait par le script
 --  SalleSportServeur, en Play. Ici on ne construit que les objets.
 --
 --  Tout est pose dans le REPERE DU SOL du batiment (il est tourne de 0,6
@@ -223,49 +224,6 @@ do
 			piece("PoidsHaltere", Vector3.new(0.3, 0.6, 0.6), L(x, 2.55, zc + dz) * CFrame.Angles(0, math.rad(90), 0), NOIR, Enum.Material.Metal, Enum.PartType.Cylinder)
 		end
 	end
-end
-
--- ---- 9. LES SIMULATEURS ----
--- le pilote regarde le mur du fond (cote oppose aux fenetres), devant 3 ecrans
-for k, x in ipairs({16, 40}) do
-	local zc = Z(-14)
-	local avant = Z(-1)
-	local function P(dx, y, dz) return L(x + dx, y, zc + avant * dz) end
-	piece("SocleSimu", Vector3.new(7, 0.4, 10), P(0, 0.2, 1), NOIR, Enum.Material.Metal)
-	piece("NeonSimu", Vector3.new(7.2, 0.1, 10.2), P(0, 0.05, 1), NEON, Enum.Material.Neon)
-	local siege = Instance.new("Seat")
-	siege.Name = "SiegeSimulateur"
-	siege.Anchored = true
-	siege.Size = Vector3.new(2.2, 0.5, 2.2)
-	siege.CFrame = CFrame.lookAt(P(0, 1.3, -1).Position, P(0, 1.3, 10).Position)
-	siege.Color = NOIR
-	siege.Material = Enum.Material.Leather
-	siege:SetAttribute("Numero", k)
-	siege.Parent = dossier
-	piece("DossierSimu", Vector3.new(2.4, 3.2, 0.5), CFrame.lookAt(P(0, 2.7, -2.3).Position, P(0, 2.4, 10).Position) * CFrame.Angles(math.rad(-12), 0, 0), NOIR, Enum.Material.Leather)
-	for _, dx in ipairs({-1.25, 1.25}) do
-		piece("BordSimu", Vector3.new(0.4, 1.2, 2.4), P(dx, 1.6, -1), ROUGE, Enum.Material.Leather)
-	end
-	piece("ColonneVolant", Vector3.new(0.3, 0.3, 1.8), P(0, 2.4, 1.2), GRIS, Enum.Material.Metal)
-	piece("Volant", Vector3.new(0.25, 1.7, 1.7), CFrame.lookAt(P(0, 2.6, 0.4).Position, P(0, 2.6, 5).Position) * CFrame.Angles(0, math.rad(90), 0), NOIR, Enum.Material.Leather, Enum.PartType.Cylinder)
-	for _, dx in ipairs({-0.4, 0.4}) do
-		piece("Pedale", Vector3.new(0.4, 0.6, 0.15), P(dx, 0.75, 2.6), ACIER, Enum.Material.Metal)
-	end
-	-- les 3 ecrans, en arc autour du pilote (5 de large, ecartes de 58 degres :
-	-- a 6 de large et 38 degres, ils se chevauchaient)
-	for e, angle in ipairs({-58, 0, 58}) do
-		local centre = P(0, 3.6, 0)
-		local dir = (P(0, 3.6, 1).Position - centre.Position).Unit     -- droit devant le pilote
-		local ecranPos = centre.Position + (CFrame.Angles(0, math.rad(angle), 0):VectorToWorldSpace(dir)) * 5.4
-		local ecran = piece("EcranSimu", Vector3.new(5, 3.6, 0.2), CFrame.lookAt(ecranPos, centre.Position), BLEU_E)
-		piece("CadreEcranSimu", Vector3.new(5.3, 3.9, 0.15), CFrame.lookAt(ecranPos, centre.Position) * CFrame.new(0, 0, 0.12), NEON, Enum.Material.Neon)
-		texte(ecran, Enum.NormalId.Front, (e == 2) and "SIMULATEUR " .. k .. "\nASSIEDS-TOI POUR PILOTER" or "▶ ▶ ▶", NEON, 30)
-		if e == 2 then
-			ecran.Name = "EcranSimuCentre"
-			ecran:SetAttribute("Numero", k)
-		end
-	end
-	piece("PiedEcrans", Vector3.new(0.4, 3, 0.4), P(0, 1.5, 5.2), GRIS, Enum.Material.Metal)
 end
 
 -- ---- 10. LES PANNEAUX ----
