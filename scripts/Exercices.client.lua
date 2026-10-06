@@ -14,7 +14,7 @@
 --    BARRE  on s accroche ; chaque clic fait monter, la jauge redescend
 --           de plus en plus vite : menton a la barre = une traction
 --    HALTERES  chaque clic = un curl, bras droit puis bras gauche
---    RAMEUR Q / D en alternance : la course ; le siege glisse, on rame
+--    RAMEUR chaque clic = un coup de rame : la course ; le siege glisse
 --  Le velo marche pour TOUS les pilotes qu on voit ; le banc et le sac,
 --  seulement pour nous.
 -- =========================================================
@@ -604,11 +604,14 @@ local function poserBanc(perso, dt)
 end
 
 -- ---- LE RAMEUR : la course, et l animation de TOUS les rameurs ----
--- Q et D en ALTERNANCE : chaque bonne alternance = un coup de rame
--- (IMPULSION). Le bateau ralentit tout seul (FREIN). Le coup de rame
+-- Chaque CLIC = un coup de rame (IMPULSION_CLIC). Avec le clavier : A/Q et D
+-- (ou les fleches) en ALTERNANCE (IMPULSION). Attention : Roblox lit la PLACE
+-- des touches (clavier anglais) : sur un clavier AZERTY, le "Q" est la touche A.
+-- Le bateau ralentit tout seul (FREIN). Le coup de rame
 -- (le siege qui glisse, le buste, les bras) avance d autant plus vite
 -- qu on va vite. Un coup = 40 % de "tirage" rapide, 60 % de retour lent.
-local IMPULSION, VMAX = 0.9, 9          -- m/s gagnes par coup ; vitesse maxi
+local IMPULSION, VMAX = 0.9, 9          -- m/s gagnes par coup (clavier) ; vitesse maxi
+local IMPULSION_CLIC = 0.6              -- m/s gagnes par clic de souris
 local FREIN_V, FREIN_0 = 0.35, 0.25     -- on perd 35 % de sa vitesse par seconde, plus 0,25 m/s
 local evenementRameur = game:GetService("ReplicatedStorage"):WaitForChild("Rameur", 10)
 local rameurs = {}       -- siege -> {pieces, phase}
@@ -669,18 +672,24 @@ UserInputService.InputBegan:Connect(function(entree)
 	-- on ne regarde PAS "dejaPris" : Roblox prend D (marcher a droite) pour lui, et
 	-- on ne recevait que Q. On ignore seulement ce qu on tape dans le chat.
 	if not course or UserInputService:GetFocusedTextBox() then return end
-	local k = entree.KeyCode
-	local touche = (k == Enum.KeyCode.Q or k == Enum.KeyCode.Left) and "Q" or (k == Enum.KeyCode.D or k == Enum.KeyCode.Right) and "D" or nil
+	local k, genre = entree.KeyCode, entree.UserInputType
+	local touche = (genre == Enum.UserInputType.MouseButton1 or genre == Enum.UserInputType.Touch) and "clic"
+		or (k == Enum.KeyCode.Q or k == Enum.KeyCode.A or k == Enum.KeyCode.Left) and "G"
+		or (k == Enum.KeyCode.D or k == Enum.KeyCode.Right) and "D" or nil
 	if not touche then return end
 	if course.fini then
 		if os.clock() - course.fini > 2 then nouvelleCourse() end   -- on rejoue
 		return
 	end
-	if touche ~= course.derniere then
+	if touche == "clic" then
+		course.v = math.min(VMAX, course.v + IMPULSION_CLIC)
+	elseif touche ~= course.derniere then
 		course.derniere = touche
 		course.v = math.min(VMAX, course.v + IMPULSION)
-		course.t0 = course.t0 or os.clock()               -- le chrono part au premier coup
+	else
+		return                                            -- deux fois la meme touche : rien
 	end
+	course.t0 = course.t0 or os.clock()                   -- le chrono part au premier coup
 end)
 
 -- la pose d un rameur, pour s (0 = jambes pliees, en avant ; 1 = fin du coup, en arriere)
@@ -785,7 +794,7 @@ local function majCourse(dt, perso)
 	end
 	avanceR.Size = UDim2.fromScale(c.d / distance, 1)
 	texteCourse.Text = string.format("%d / %d m   ·   %d:%05.2f   ·   %.1f m/s", math.floor(c.d), distance, temps // 60, temps % 60, c.v)
-	texteConsR.Text = c.fini and "ARRIVEE ! (Q ou D pour rejouer, Espace pour descendre)" or (c.t0 and "Q / D en alternance, le plus vite possible !" or "Appuie sur Q puis D pour partir")
+	texteConsR.Text = c.fini and "ARRIVEE ! (clique pour rejouer, Espace pour descendre)" or (c.t0 and "CLIQUE le plus vite possible !" or "Clique pour partir !")
 	c.envoi += dt
 	if c.envoi > 0.25 and evenementRameur then
 		c.envoi = 0
