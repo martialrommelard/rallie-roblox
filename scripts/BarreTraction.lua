@@ -20,8 +20,8 @@ local salle = workspace:WaitForChild("ZoneSpawn"):WaitForChild("SalleSport")
 local sol = salle:WaitForChild("MoquetteSimu")     -- la moquette de l ancien coin des simulateurs
 
 -- ---- OU : dans le repere de la moquette (son milieu = 0, 0) : contre le mur du fond (+Z),
---      de chaque cote du rameur, tournees vers la salle ----
-local POSITIONS = {Vector3.new(-6, 0, 12), Vector3.new(6, 0, 12)}
+--      dans les 2 coins, tournees vers la salle ----
+local POSITIONS = {Vector3.new(-16, 0, 12), Vector3.new(16, 0, 12)}
 
 -- ---- LE PILOTE (mesure sur mon avatar, en studs, depuis le HumanoidRootPart) ----
 local RACINE_PIEDS = 3.0     -- du HumanoidRootPart a la semelle

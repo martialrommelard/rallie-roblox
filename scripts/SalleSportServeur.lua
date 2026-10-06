@@ -461,52 +461,59 @@ if ratelier then
 end
 
 -- =========================================================
---  7. LE RAMEUR (le modele Rameur : Rameur.lua)
+--  7. LES RAMEURS (les modeles Rameur : Rameur.lua)
 --  E : on s assoit. Le jeu (Q / D en alternance) et l animation sont chez le
 --  joueur (Exercices). Il nous envoie sa vitesse (on la recopie dans un
---  attribut du siege : les autres le voient ramer a la bonne cadence) et
---  son temps a l arrivee (on garde le record).
+--  attribut de SON siege : les autres le voient ramer a la bonne cadence)
+--  et son temps a l arrivee. Chaque rameur garde son record.
 -- =========================================================
-local rameur = salle:FindFirstChild("Rameur")
-local siegeR = rameur and rameur:FindFirstChild("SiegeRameur")
-if siegeR then
-	local evenementRameur = ReplicatedStorage:FindFirstChild("Rameur") or Instance.new("RemoteEvent")
-	evenementRameur.Name = "Rameur"
-	evenementRameur.Parent = ReplicatedStorage
-	local distance = rameur:GetAttribute("Distance") or 250
-	local recordR = nil          -- {temps, nom}
-	local function majEcran()
-		local qui = siegeR.Occupant and Players:GetPlayerFromCharacter(siegeR.Occupant.Parent)
-		local texte = string.format("RAMEUR %d m\nRECORD : %s", distance,
-			recordR and string.format("%s · %d:%05.2f", recordR.nom, recordR.temps // 60, recordR.temps % 60) or "—")
-			.. (qui and ("\nEN COURSE : " .. qui.DisplayName) or "")
-		for _, g in ipairs(rameur.EcranRameur:GetChildren()) do
-			local t = g:IsA("SurfaceGui") and g:FindFirstChild("Texte")
-			if t then t.Text = texte end
+local evenementRameur = ReplicatedStorage:FindFirstChild("Rameur") or Instance.new("RemoteEvent")
+evenementRameur.Name = "Rameur"
+evenementRameur.Parent = ReplicatedStorage
+local rameurs = {}           -- siege -> {modele, record = {temps, nom}}
+local function majEcran(siege)
+	local r = rameurs[siege]
+	local distance = r.modele:GetAttribute("Distance") or 250
+	local qui = siege.Occupant and Players:GetPlayerFromCharacter(siege.Occupant.Parent)
+	local texte = string.format("RAMEUR %d · %d m\nRECORD : %s", r.modele:GetAttribute("Numero") or 0, distance,
+		r.record and string.format("%s · %d:%05.2f", r.record.nom, r.record.temps // 60, r.record.temps % 60) or "—")
+		.. (qui and ("\nEN COURSE : " .. qui.DisplayName) or "")
+	for _, g in ipairs(r.modele.EcranRameur:GetChildren()) do
+		local t = g:IsA("SurfaceGui") and g:FindFirstChild("Texte")
+		if t then t.Text = texte end
+	end
+end
+for _, m in ipairs(salle:GetChildren()) do
+	local siege = m.Name == "Rameur" and m:FindFirstChild("SiegeRameur")
+	if siege then
+		rameurs[siege] = {modele = m}
+		majEcran(siege)
+		siege.ProximityPrompt.Triggered:Connect(function(joueur)
+			local hum = joueur.Character and joueur.Character:FindFirstChildOfClass("Humanoid")
+			if hum and not siege.Occupant and not hum.SeatPart then siege:Sit(hum) end
+		end)
+		siege:GetPropertyChangedSignal("Occupant"):Connect(function()
+			siege:SetAttribute("Vitesse", 0)
+			siege.ProximityPrompt.Enabled = siege.Occupant == nil
+			majEcran(siege)
+		end)
+	end
+end
+evenementRameur.OnServerEvent:Connect(function(joueur, quoi, valeur)
+	if typeof(valeur) ~= "number" then return end
+	-- le rameur sur lequel il est assis
+	local hum = joueur.Character and joueur.Character:FindFirstChildOfClass("Humanoid")
+	local siege = hum and hum.SeatPart
+	local r = siege and rameurs[siege]
+	if not r then return end
+	if quoi == "vitesse" then
+		siege:SetAttribute("Vitesse", math.clamp(valeur, 0, 12))
+	elseif quoi == "arrivee" and valeur >= (r.modele:GetAttribute("Distance") or 250) / 12 then   -- plus vite que 12 m/s : triche
+		if not r.record or valeur < r.record.temps then
+			r.record = {temps = valeur, nom = joueur.DisplayName}
+			majEcran(siege)
 		end
 	end
-	majEcran()
-	siegeR.ProximityPrompt.Triggered:Connect(function(joueur)
-		local hum = joueur.Character and joueur.Character:FindFirstChildOfClass("Humanoid")
-		if hum and not siegeR.Occupant and not hum.SeatPart then siegeR:Sit(hum) end
-	end)
-	siegeR:GetPropertyChangedSignal("Occupant"):Connect(function()
-		siegeR:SetAttribute("Vitesse", 0)
-		siegeR.ProximityPrompt.Enabled = siegeR.Occupant == nil
-		majEcran()
-	end)
-	evenementRameur.OnServerEvent:Connect(function(joueur, quoi, valeur)
-		local assis = siegeR.Occupant and Players:GetPlayerFromCharacter(siegeR.Occupant.Parent) == joueur
-		if not assis or typeof(valeur) ~= "number" then return end
-		if quoi == "vitesse" then
-			siegeR:SetAttribute("Vitesse", math.clamp(valeur, 0, 12))
-		elseif quoi == "arrivee" and valeur >= distance / 12 then      -- plus vite que 12 m/s : triche
-			if not recordR or valeur < recordR.temps then
-				recordR = {temps = valeur, nom = joueur.DisplayName}
-				majEcran()
-			end
-		end
-	end)
-end
+end)
 
 print("Salle de sport prete")
