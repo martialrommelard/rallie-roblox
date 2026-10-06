@@ -229,4 +229,62 @@ task.spawn(function()
 	end
 end)
 
+-- =========================================================
+--  5. LA BARRE DE TRACTION (le modele BarreDeTraction : BarreTraction.lua)
+--  Le jeu de la jauge tourne chez le joueur (Exercices). Il nous dit
+--  "debut", "rep" (une traction) et "fin". Ici : une seule personne a la
+--  fois, on compte, et on garde le record sur le panneau.
+--  Le serveur ne croit pas tout : il faut etre pres de la barre, et une
+--  traction en moins de 0,4 s, c est de la triche.
+-- =========================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local evenementTraction = ReplicatedStorage:FindFirstChild("Traction") or Instance.new("RemoteEvent")
+evenementTraction.Name = "Traction"
+evenementTraction.Parent = ReplicatedStorage
+
+local station = salle:FindFirstChild("BarreDeTraction")
+local barreT = station and station:FindFirstChild("BarreTraction")
+local panneauT = station and station:FindFirstChild("PanneauTraction")
+local serie = {}            -- joueur -> {n, dernier}
+local recordT = nil         -- {n, nom}
+local function majPanneau()
+	if not panneauT then return end
+	local enCours = ""
+	local id = station:GetAttribute("Occupant")
+	local qui = id and Players:GetPlayerByUserId(id)
+	if qui and serie[qui] then enCours = string.format("\n%s : %d", qui.DisplayName, serie[qui].n) end
+	local texte = "BARRE DE TRACTION\nRECORD : " .. (recordT and string.format("%s · %d", recordT.nom, recordT.n) or "—") .. enCours
+	for _, g in ipairs(panneauT:GetChildren()) do        -- le panneau a 2 faces
+		local t = g:IsA("SurfaceGui") and g:FindFirstChild("Texte")
+		if t then t.Text = texte end
+	end
+end
+if barreT then
+	majPanneau()
+	evenementTraction.OnServerEvent:Connect(function(joueur, quoi)
+		local r = joueur.Character and joueur.Character:FindFirstChild("HumanoidRootPart")
+		local pres = r and (r.Position - barreT.Position).Magnitude < 10
+		if quoi ~= "fin" and not pres then return end          -- "fin" marche de partout (mort, reapparu...)
+		local occupant = station:GetAttribute("Occupant")
+		if quoi == "debut" and not occupant then
+			station:SetAttribute("Occupant", joueur.UserId)
+			serie[joueur] = {n = 0, dernier = 0}
+		elseif quoi == "rep" and occupant == joueur.UserId and serie[joueur] then
+			local s = serie[joueur]
+			if os.clock() - s.dernier < 0.4 then return end
+			s.n += 1
+			s.dernier = os.clock()
+			if not recordT or s.n > recordT.n then recordT = {n = s.n, nom = joueur.DisplayName} end
+		elseif quoi == "fin" and occupant == joueur.UserId then
+			station:SetAttribute("Occupant", nil)
+			serie[joueur] = nil
+		end
+		majPanneau()
+	end)
+	Players.PlayerRemoving:Connect(function(joueur)
+		if station:GetAttribute("Occupant") == joueur.UserId then station:SetAttribute("Occupant", nil) end
+		serie[joueur] = nil
+	end)
+end
+
 print("Salle de sport prete")

@@ -11,6 +11,8 @@
 --           ses pieds SUIVENT les pedales (le triangle cuisse-mollet)
 --    SAC    a chaque coup ("Frapper"), un bras part en avant, gauche puis droit
 --    TAPIS  les rayures de la bande defilent a la vitesse du tapis
+--    BARRE  on s accroche ; chaque clic fait monter, la jauge redescend
+--           de plus en plus vite : menton a la barre = une traction
 --  Le velo marche pour TOUS les pilotes qu on voit ; le banc et le sac,
 --  seulement pour nous.
 -- =========================================================
@@ -195,6 +197,192 @@ local function relacher(perso)
 	if j then for _, o in pairs(j) do o.a.CFrame = o.base end end
 end
 
+-- ---- LA BARRE DE TRACTION : le jeu de la jauge ----
+-- Chaque CLIC fait monter (PAS). La jauge redescend toute seule, d autant
+-- plus vite qu on est HAUT (h au carre) et qu on a deja fait de tractions
+-- (FATIGUE) : il faut cliquer de plus en plus vite. h = 1 : une traction !
+local PAS     = 0.1
+local CHUTE   = 0.15       -- ce que la jauge perd par seconde, tout en bas
+local CHUTE_H = 0.9        -- ... et en plus, tout en haut
+local FATIGUE = 0.06       -- chaque traction faite rend la suivante 6 % plus dure
+
+local evenementTraction = game:GetService("ReplicatedStorage"):WaitForChild("Traction")
+local UserInputService = game:GetService("UserInputService")
+local traction = nil       -- {barre, h, hVue, reps, bas, haut, aligneP, aligneO, att}
+
+-- l ecran de la jauge
+local gui = Instance.new("ScreenGui")
+gui.Name = "JaugeTraction"
+gui.ResetOnSpawn = false
+gui.Enabled = false
+gui.Parent = joueur:WaitForChild("PlayerGui")
+local cadre = Instance.new("Frame")
+cadre.AnchorPoint = Vector2.new(1, 0.5)
+cadre.Position = UDim2.new(1, -40, 0.5, 0)
+cadre.Size = UDim2.fromOffset(70, 320)
+cadre.BackgroundColor3 = Color3.fromRGB(8, 14, 26)
+cadre.BackgroundTransparency = 0.15
+cadre.BorderSizePixel = 0
+cadre.Parent = gui
+Instance.new("UICorner", cadre).CornerRadius = UDim.new(0, 12)
+local remplissage = Instance.new("Frame")
+remplissage.AnchorPoint = Vector2.new(0, 1)
+remplissage.Position = UDim2.new(0, 8, 1, -8)
+remplissage.Size = UDim2.new(1, -16, 0, 0)
+remplissage.BorderSizePixel = 0
+remplissage.Parent = cadre
+Instance.new("UICorner", remplissage).CornerRadius = UDim.new(0, 8)
+local function etiquette(pos, taille, texte, couleur)
+	local l = Instance.new("TextLabel")
+	l.AnchorPoint = Vector2.new(1, 0.5)
+	l.Position, l.Size = pos, taille
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.GothamBlack
+	l.TextScaled = true
+	l.TextColor3 = couleur
+	l.TextStrokeTransparency = 0.3
+	l.Text = texte
+	l.Parent = gui
+	return l
+end
+local texteReps   = etiquette(UDim2.new(1, -20, 0.5, -190), UDim2.fromOffset(260, 40), "TRACTIONS : 0", Color3.new(1, 1, 1))
+local texteClic   = etiquette(UDim2.new(1, -120, 0.5, 0), UDim2.fromOffset(220, 50), "CLIQUE !", Color3.fromRGB(255, 205, 60))
+local texteAide   = etiquette(UDim2.new(1, -20, 0.5, 190), UDim2.fromOffset(260, 26), "Espace : lacher la barre", Color3.fromRGB(180, 190, 200))
+local texteBravo  = etiquette(UDim2.new(1, -120, 0.5, -60), UDim2.fromOffset(160, 60), "", Color3.fromRGB(80, 220, 120))
+
+local function finirTraction()
+	if not traction then return end
+	local t = traction
+	traction = nil
+	for _, o in ipairs({t.aligneP, t.aligneO, t.att}) do o:Destroy() end
+	local perso = joueur.Character
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	if hum then hum.PlatformStand = false end
+	if perso then relacher(perso) end
+	t.prompt.Enabled = true
+	gui.Enabled = false
+	evenementTraction:FireServer("fin")
+end
+
+local function commencerTraction(barre, prompt)
+	local perso = joueur.Character
+	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
+	local racine = perso and perso:FindFirstChild("HumanoidRootPart")
+	local LT, UT = perso and perso:FindFirstChild("LowerTorso"), perso and perso:FindFirstChild("UpperTorso")
+	local brasHaut, brasBas, main = perso and perso:FindFirstChild("RightUpperArm"), perso and perso:FindFirstChild("RightLowerArm"), perso and perso:FindFirstChild("RightHand")
+	if traction or not (hum and racine and LT and UT and brasHaut and brasBas and main) or hum.SeatPart then return end
+	if barre.Parent:GetAttribute("Occupant") then return end           -- quelqu un y est deja
+	-- ou sont l epaule et le cou, vus depuis le HumanoidRootPart (on le DEMANDE a l avatar)
+	local base = racine.RootRigAttachment.Position.Y - LT.RootRigAttachment.Position.Y + LT.WaistRigAttachment.Position.Y - UT.WaistRigAttachment.Position.Y
+	local epauleY = base + UT.RightShoulderRigAttachment.Position.Y
+	local vHaut = brasHaut.RightElbowRigAttachment.Position - brasHaut.RightShoulderRigAttachment.Position
+	local vBas = (brasBas.RightWristRigAttachment.Position - brasBas.RightElbowRigAttachment.Position)
+		+ (main.RightGripAttachment.Position - main.RightWristRigAttachment.Position)
+	local bras = longueurCote(vHaut) + longueurCote(vBas)
+	-- en bas : bras presque tendus ; en haut : les epaules a 0,45 sous la barre
+	local yBarre = barre.Position.Y
+	local bas = yBarre - epauleY - bras * 0.97
+	local haut = yBarre - 0.45 - epauleY
+
+	local att = Instance.new("Attachment")
+	att.Parent = racine
+	local aligneP = Instance.new("AlignPosition")
+	aligneP.Mode = Enum.PositionAlignmentMode.OneAttachment
+	aligneP.Attachment0 = att
+	aligneP.MaxForce = 1e6
+	aligneP.Responsiveness = 60
+	aligneP.Parent = racine
+	local aligneO = Instance.new("AlignOrientation")
+	aligneO.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	aligneO.Attachment0 = att
+	aligneO.MaxTorque = 1e6
+	aligneO.Responsiveness = 60
+	aligneO.CFrame = barre.CFrame - barre.CFrame.Position      -- on regarde comme la barre (vers son -Z)
+	aligneO.Parent = racine
+	hum.PlatformStand = true
+	prompt.Enabled = false
+	traction = {perso = perso, barre = barre, prompt = prompt, h = 0, hVue = 0, reps = 0, bas = bas, haut = haut,
+		aligneP = aligneP, aligneO = aligneO, att = att, finBravo = 0}
+	aligneP.Position = Vector3.new(barre.Position.X, bas, barre.Position.Z)
+	texteReps.Text = "TRACTIONS : 0"
+	gui.Enabled = true
+	evenementTraction:FireServer("debut")
+end
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt, qui)
+	if qui == joueur and prompt.Parent and prompt.Parent.Name == "BarreTraction" then
+		commencerTraction(prompt.Parent, prompt)
+	end
+end)
+UserInputService.InputBegan:Connect(function(entree, dejaPris)
+	if not traction then return end
+	if entree.KeyCode == Enum.KeyCode.Space then finirTraction() return end
+	if dejaPris then return end
+	if entree.UserInputType == Enum.UserInputType.MouseButton1 or entree.UserInputType == Enum.UserInputType.Touch
+		or entree.KeyCode == Enum.KeyCode.ButtonR2 then
+		traction.h += PAS
+	end
+end)
+
+local function poserTraction(perso, dt)
+	local t = traction
+	local hum = perso:FindFirstChildOfClass("Humanoid")
+	if perso ~= t.perso or not hum or hum.Health <= 0 or not t.barre:IsDescendantOf(workspace) then finirTraction() return end
+	-- la jauge redescend, plus vite en haut et avec la fatigue
+	t.h = math.max(0, t.h - (CHUTE + CHUTE_H * t.h * t.h) * (1 + FATIGUE * t.reps) * dt)
+	if t.h >= 1 then
+		t.reps += 1
+		t.h = 0
+		t.finBravo = os.clock() + 0.8
+		texteReps.Text = "TRACTIONS : " .. t.reps
+		evenementTraction:FireServer("rep")
+	end
+	t.hVue += (t.h - t.hVue) * math.min(1, dt * 12)             -- le corps suit la jauge, en douceur
+	-- la jauge : du vert (en bas) au rouge (en haut)
+	remplissage.Size = UDim2.new(1, -16, math.clamp(t.h, 0, 1) * (1 - 16 / 320), 0)
+	remplissage.BackgroundColor3 = Color3.fromRGB(80, 220, 120):Lerp(Color3.fromRGB(255, 70, 50), t.h)
+	texteClic.Visible = (os.clock() * 4) % 2 < 1.4                 -- "CLIQUE !" clignote
+	texteBravo.Text = os.clock() < t.finBravo and "+1 !" or ""
+	-- le corps monte et descend
+	local b = t.barre.Position
+	t.aligneP.Position = Vector3.new(b.X, t.bas + (t.haut - t.bas) * t.hVue, b.Z)
+	-- les bras : les mains sur les poignees (le meme triangle que sur le velo)
+	local j = jointsDe(perso)
+	local UT = perso:FindFirstChild("UpperTorso")
+	if not (j and UT) then return end
+	local animateur = hum:FindFirstChildOfClass("Animator")
+	if animateur then
+		for _, piste in ipairs(animateur:GetPlayingAnimationTracks()) do piste:Stop(0) end
+	end
+	local poignees = {}
+	for _, p in ipairs(t.barre.Parent:GetChildren()) do
+		if p.Name == "PoigneeTraction" then table.insert(poignees, p) end
+	end
+	for _, cote in ipairs({"Right", "Left"}) do
+		local haut, avant, main = perso:FindFirstChild(cote .. "UpperArm"), perso:FindFirstChild(cote .. "LowerArm"), perso:FindFirstChild(cote .. "Hand")
+		-- la poignee de ce cote : celle qui est du meme cote que l epaule
+		local epaule = UT[cote .. "ShoulderRigAttachment"]
+		local poignee = nil
+		for _, p in ipairs(poignees) do
+			if not poignee or (p.Position - epaule.WorldPosition).Magnitude < (poignee.Position - epaule.WorldPosition).Magnitude then poignee = p end
+		end
+		if haut and avant and main and poignee then
+			local vHaut = haut[cote .. "ElbowRigAttachment"].Position - haut[cote .. "ShoulderRigAttachment"].Position
+			local vBas = (avant[cote .. "WristRigAttachment"].Position - avant[cote .. "ElbowRigAttachment"].Position)
+				+ (main[cote .. "GripAttachment"].Position - main[cote .. "WristRigAttachment"].Position)
+			local tHaut, tBas = triangle(UT.CFrame * j[cote .. "Shoulder"].base, epaule.WorldPosition,
+				poignee.Position, longueurCote(vHaut), longueurCote(vBas), false)   -- les coudes passent devant
+			local s = tHaut - angleCote(vHaut)
+			poserRad(j, cote .. "Shoulder", s)
+			poserRad(j, cote .. "Elbow", tBas - s - angleCote(vBas))
+		end
+		-- les jambes pendent, genoux un peu plies
+		poser(j, cote .. "Hip", 12)
+		poser(j, cote .. "Knee", -45)
+		poser(j, cote .. "Ankle", 25)
+	end
+end
+
 -- ---- MOI : le banc et le sac ----
 -- les coups de poing
 local coup = nil       -- {bras = "Right"/"Left", t0}
@@ -238,6 +426,7 @@ RunService.RenderStepped:Connect(function(dt)
 	local perso = joueur.Character
 	local hum = perso and perso:FindFirstChildOfClass("Humanoid")
 	local j = perso and jointsDe(perso)
+	if traction then if perso then poserTraction(perso, dt) else finirTraction() end return end
 	if not hum or not j or vus[perso] then return end
 	local siege = hum.SeatPart
 	-- par defaut : rien (on remet tout comme l animation de Roblox le fait)
