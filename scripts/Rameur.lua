@@ -22,8 +22,9 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local salle = workspace:WaitForChild("ZoneSpawn"):WaitForChild("SalleSport")
 local sol = salle:WaitForChild("MoquetteSimu")
 
--- ---- OU : dans le repere de la moquette, entre les barres de traction et le mur ----
-local POSITION = Vector3.new(0, 0, 8)
+-- ---- OU : dans le repere de la moquette, au milieu, devant les 2 barres de traction,
+--      tourne vers la salle (-Z) ----
+local POSITION = Vector3.new(0, 0, 4)
 local DISTANCE = 250          -- la course, en metres
 
 -- ---- LE RAMEUR ASSIS (mesure sur mon avatar, en studs) ----
