@@ -665,8 +665,10 @@ local texteConsR   = etiquetteR(160, 30, Color3.fromRGB(255, 205, 60))
 local function nouvelleCourse()
 	course = {v = 0, d = 0, t0 = nil, derniere = nil, fini = nil, envoi = 0}
 end
-UserInputService.InputBegan:Connect(function(entree, dejaPris)
-	if not course or dejaPris then return end
+UserInputService.InputBegan:Connect(function(entree)
+	-- on ne regarde PAS "dejaPris" : Roblox prend D (marcher a droite) pour lui, et
+	-- on ne recevait que Q. On ignore seulement ce qu on tape dans le chat.
+	if not course or UserInputService:GetFocusedTextBox() then return end
 	local k = entree.KeyCode
 	local touche = (k == Enum.KeyCode.Q or k == Enum.KeyCode.Left) and "Q" or (k == Enum.KeyCode.D or k == Enum.KeyCode.Right) and "D" or nil
 	if not touche then return end
