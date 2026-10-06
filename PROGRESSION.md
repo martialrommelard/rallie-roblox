@@ -20,12 +20,11 @@ Tout est construit **en Play** par des scripts (voir le journal du 05).
 creusée sous le spawn et sous les deux bâtiments (sol noir, murs blancs,
 plafonniers), entrées : les 2 escaliers derrière le spawn (portes en face des
 marches) et 2 grands garages côté piste. Dans le bâtiment vide : salle de
-sport (tapis, banc, sacs de frappe, vélos) et 2 **simulateurs-bornes
-d'arcade en 3D** (on reste assis, on joue sur l'écran).
+sport (tapis, banc, sacs de frappe, vélos).
 ⚠️ Le sous-sol et la salle de sport **modifient la place** (générateurs à
 lancer une fois en Edit) : sans `Ctrl+S`, ils sont perdus.
-⚠️ **À vérifier en reprenant** : « l'écran bugge » sur la borne 3D (pas encore
-su quoi : clignotement ? saccades ? — demander).
+❌ **Les simulateurs ont été SUPPRIMÉS le 2026-10-06** : l'écran de la borne
+restait bleu (la 3D ne s'affichait pas). Voir le journal du 06.
 
 **Étape 1 (le circuit) : TERMINÉE ✅**
 **Étape 2 (la fosse à piques) : TERMINÉE ✅ — mon premier script !**
@@ -475,6 +474,23 @@ revenues sur la grille. ✅
 
 ⚠️ Les réverbères et les PNJ sont **construits au lancement du Play** : on ne
 les voit pas dans l'éditeur, c'est normal.
+
+### 2026-10-06 — les simulateurs, abandonnés
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| « le simulateur, l'écran est bleu » | on a cherché : le bleu, c'est le « ciel » du ViewportFrame ; le chrono et les km/h s'affichent, mais pas la 3D |
+| « c'est bon, abandonne, ça marche pas, supprime » → les simulateurs entiers | les 2 machines (162 pièces) supprimées de la salle de sport ; `Arcade.client.lua` et `MachineSimulateur.lua` supprimés ; la partie « simulateurs » enlevée de `SalleSportServeur` et de `SalleSport.lua` |
+
+Ce que les tests ont montré (sans trouver la cause) : un écran avec un cube
+seul marche ; chaque dossier du circuit tout seul marche ; 208 morceaux sur un
+petit panneau marchent… mais les mêmes 208 sur l'écran de la borne restent
+bleus. Restent dans la salle : la moquette et le panneau « SIMULATEURS DE
+COURSE ».
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Écran de test laissé en place | pendant le Play, mon écran de test (bleu) était posé par-dessus celui du jeu | enlever ses tests avant de faire essayer |
 
 ---
 
