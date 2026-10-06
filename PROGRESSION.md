@@ -9,6 +9,9 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ### État au 2026-10-06 (fin d'après-midi)
 
+💡 **Idées pour la suite** : [`IDEES.md`](IDEES.md) (à corriger d'abord : le
+bouton « Se lever » des bureaux).
+
 **L'ÉPICERIE est ouverte ✅ (2026-10-06)** — dans la moitié côté porte du
 bâtiment de la salle de sport (on la traverse par l'allée verte pour aller
 faire du sport). Générateur `scripts/Epicerie.lua` (lancé en Edit) ; en Play :
