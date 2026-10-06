@@ -689,17 +689,11 @@ RunService.RenderStepped:Connect(function(dt)
 			if coup.bras == "Right" then epD, coD = 90 * bosse, -10 * bosse else epG, coG = 90 * bosse, -10 * bosse end
 		end
 	end
-	-- les halteres en main : les bras le long du corps (on coupe le "bras tendu" de l outil), et les curls
+	-- les halteres en main : les curls
 	local outil = perso:FindFirstChild("Halteres")
 	guiH.Enabled = outil ~= nil
 	if outil then
 		texteCurls.Text = string.format("CURLS : %d · %d kg", nbCurls, outil:GetAttribute("Poids") or 0)
-		local animateur = hum:FindFirstChildOfClass("Animator")
-		if animateur then
-			for _, piste in ipairs(animateur:GetPlayingAnimationTracks()) do
-				if piste.Name == "ToolNoneAnim" then piste:Stop(0) end
-			end
-		end
 		if curl then
 			local k = (os.clock() - curl.t0) / curl.duree
 			if k >= 1 then

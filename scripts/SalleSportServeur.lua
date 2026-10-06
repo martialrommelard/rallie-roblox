@@ -390,39 +390,45 @@ local function prendre(joueur, paire)
 	for _, h in ipairs(paire:GetChildren()) do
 		if h.Name == "Haltere" then table.insert(halteres, h) end
 	end
+	-- un outil SANS poignee officielle ("Handle") : sinon Roblox joue son
+	-- animation "bras tendu devant" et la relance a chaque image (le bras
+	-- sautait). C est nous qui soudons une haltère dans chaque main.
 	local outil = Instance.new("Tool")
 	outil.Name = "Halteres"
+	outil.RequiresHandle = false
 	outil.ToolTip = paire:GetAttribute("Poids") .. " kg"
 	outil.CanBeDropped = false
 	outil:SetAttribute("Poids", paire:GetAttribute("Poids"))
 	outil:SetAttribute("Duree", paire:GetAttribute("Duree"))
 	outil:SetAttribute("Joueur", joueur.UserId)
-	-- la poignee dans le sens de la main (de gauche a droite) : on annule la rotation de la prise
-	outil.Grip = prise.CFrame - prise.CFrame.Position
-	local poignee = copieTenue(halteres[1])
-	poignee.Name = "Handle"
-	poignee.Parent = outil
-	-- la 2e haltère, dans la main gauche, quand l outil est sorti
-	local gauche = nil
+	local enMain = {}          -- les 2 haltères soudees aux mains, quand l outil est sorti
+	local function lacherTout()
+		for _, h in ipairs(enMain) do h:Destroy() end
+		enMain = {}
+	end
 	outil.Equipped:Connect(function()
+		lacherTout()
 		local p = outil.Parent
-		local mainG = p and p:FindFirstChild("LeftHand")
-		local priseG = mainG and mainG:FindFirstChild("LeftGripAttachment")
-		if not priseG or not halteres[2] then return end
-		gauche = copieTenue(halteres[2])
-		gauche.Name = "HaltereGauche"
-		gauche.CFrame = mainG.CFrame * CFrame.new(priseG.Position)
-		local s = Instance.new("WeldConstraint")
-		s.Part0, s.Part1 = mainG, gauche
-		s.Parent = gauche
-		gauche.Parent = p
+		for k, cote in ipairs({"Right", "Left"}) do
+			local m = p and p:FindFirstChild(cote .. "Hand")
+			local pr = m and m:FindFirstChild(cote .. "GripAttachment")
+			if pr and halteres[k] then
+				-- la poignee dans le sens de la main (de gauche a droite), a l endroit de la prise
+				local h = copieTenue(halteres[k])
+				h.Name = "Haltere" .. cote
+				h.CFrame = m.CFrame * CFrame.new(pr.Position)
+				local s = Instance.new("WeldConstraint")
+				s.Part0, s.Part1 = m, h
+				s.Parent = h
+				h.Parent = p
+				table.insert(enMain, h)
+			end
+		end
 	end)
-	outil.Unequipped:Connect(function()
-		if gauche then gauche:Destroy() gauche = nil end
-	end)
+	outil.Unequipped:Connect(lacherTout)
 	-- l outil disparait (repose, mort, joueur parti...) : la paire revient
 	outil.Destroying:Connect(function()
-		if gauche then gauche:Destroy() end
+		lacherTout()
 		if outils[paire] == outil then
 			outils[paire] = nil
 			paire:SetAttribute("Pris", nil)
