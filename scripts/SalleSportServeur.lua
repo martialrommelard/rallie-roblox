@@ -340,12 +340,17 @@ Players.PlayerRemoving:Connect(lacher)
 local ratelier = salle:FindFirstChild("RatelierHalteres")
 local outils = {}            -- paire -> l outil de celui qui l a prise
 
--- une copie d une haltère, prete a etre tenue : rien d ancre, tout soude a la poignee
-local function copieTenue(haltere)
+-- une copie d une haltère, posee a l endroit "cible", prete a etre tenue :
+-- rien d ancre, tout soude a la poignee. On DEPLACE D ABORD chaque piece,
+-- on soude APRES : une soudure faite hors du jeu ne fait pas suivre les
+-- disques (ils restaient au ratelier et "volaient" a 5 studs de la main).
+local function copieTenue(haltere, cible)
 	local copie = haltere:Clone()
 	local poignee = copie:FindFirstChild("Poignee")
+	local depart = poignee.CFrame
 	for _, p in ipairs(copie:GetDescendants()) do
 		if p:IsA("BasePart") then
+			p.CFrame = cible * depart:ToObjectSpace(p.CFrame)      -- meme place par rapport a la poignee
 			p.Anchored, p.CanCollide, p.Massless = false, false, true
 			p.Transparency = 0
 			if p ~= poignee then
@@ -414,9 +419,8 @@ local function prendre(joueur, paire)
 			local pr = m and m:FindFirstChild(cote .. "GripAttachment")
 			if pr and halteres[k] then
 				-- la poignee dans le sens de la main (de gauche a droite), a l endroit de la prise
-				local h = copieTenue(halteres[k])
+				local h = copieTenue(halteres[k], m.CFrame * CFrame.new(pr.Position))
 				h.Name = "Haltere" .. cote
-				h.CFrame = m.CFrame * CFrame.new(pr.Position)
 				local s = Instance.new("WeldConstraint")
 				s.Part0, s.Part1 = m, h
 				s.Parent = h
