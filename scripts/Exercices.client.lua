@@ -198,13 +198,15 @@ local function relacher(perso)
 end
 
 -- ---- LA BARRE DE TRACTION : le jeu de la jauge ----
--- Chaque CLIC fait monter (PAS). La jauge redescend toute seule, d autant
--- plus vite qu on est HAUT (h au carre) et qu on a deja fait de tractions
--- (FATIGUE) : il faut cliquer de plus en plus vite. h = 1 : une traction !
-local PAS     = 0.1
-local CHUTE   = 0.15       -- ce que la jauge perd par seconde, tout en bas
-local CHUTE_H = 0.9        -- ... et en plus, tout en haut
-local FATIGUE = 0.06       -- chaque traction faite rend la suivante 6 % plus dure
+-- Chaque CLIC fait monter (PAS). La jauge redescend toute seule, un peu
+-- plus vite qu on est HAUT (h au carre), et surtout de plus en plus vite a
+-- chaque traction faite (FATIGUE) : facile au debut, dur petit a petit.
+-- Au debut, en haut, il faut ~2,6 clics/s ; a 10 tractions ~5,7 ; a 20 ~8,8.
+-- h = 1 : une traction !
+local PAS     = 0.14
+local CHUTE   = 0.08       -- ce que la jauge perd par seconde, tout en bas
+local CHUTE_H = 0.35       -- ... et en plus, tout en haut
+local FATIGUE = 0.12       -- chaque traction faite rend la suivante 12 % plus dure
 
 local evenementTraction = game:GetService("ReplicatedStorage"):WaitForChild("Traction")
 local UserInputService = game:GetService("UserInputService")
@@ -306,7 +308,7 @@ local function commencerTraction(barre, prompt)
 	aligneP.Position = Vector3.new(barre.Position.X, bas, barre.Position.Z)
 	texteReps.Text = "TRACTIONS : 0"
 	gui.Enabled = true
-	evenementTraction:FireServer("debut")
+	evenementTraction:FireServer("debut", barre.Parent)
 end
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt, qui)
@@ -335,7 +337,7 @@ local function poserTraction(perso, dt)
 		t.h = 0
 		t.finBravo = os.clock() + 0.8
 		texteReps.Text = "TRACTIONS : " .. t.reps
-		evenementTraction:FireServer("rep")
+		evenementTraction:FireServer("rep", t.barre.Parent)
 	end
 	t.hVue += (t.h - t.hVue) * math.min(1, dt * 12)             -- le corps suit la jauge, en douceur
 	-- la jauge : du vert (en bas) au rouge (en haut)

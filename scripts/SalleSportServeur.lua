@@ -230,10 +230,10 @@ task.spawn(function()
 end)
 
 -- =========================================================
---  5. LA BARRE DE TRACTION (le modele BarreDeTraction : BarreTraction.lua)
+--  5. LES BARRES DE TRACTION (les modeles BarreDeTraction : BarreTraction.lua)
 --  Le jeu de la jauge tourne chez le joueur (Exercices). Il nous dit
---  "debut", "rep" (une traction) et "fin". Ici : une seule personne a la
---  fois, on compte, et on garde le record sur le panneau.
+--  "debut", "rep" (une traction) et "fin", avec la barre. Ici : une seule
+--  personne par barre, on compte, et chaque barre garde son record.
 --  Le serveur ne croit pas tout : il faut etre pres de la barre, et une
 --  traction en moins de 0,4 s, c est de la triche.
 -- =========================================================
@@ -242,49 +242,53 @@ local evenementTraction = ReplicatedStorage:FindFirstChild("Traction") or Instan
 evenementTraction.Name = "Traction"
 evenementTraction.Parent = ReplicatedStorage
 
-local station = salle:FindFirstChild("BarreDeTraction")
-local barreT = station and station:FindFirstChild("BarreTraction")
-local panneauT = station and station:FindFirstChild("PanneauTraction")
-local serie = {}            -- joueur -> {n, dernier}
-local recordT = nil         -- {n, nom}
-local function majPanneau()
-	if not panneauT then return end
+local stations = {}          -- modele -> {barre, panneau, record = {n, nom}}
+local serie = {}             -- joueur -> {station, n, dernier}
+local function majPanneau(station)
+	local s = stations[station]
 	local enCours = ""
-	local id = station:GetAttribute("Occupant")
-	local qui = id and Players:GetPlayerByUserId(id)
+	local qui = station:GetAttribute("Occupant") and Players:GetPlayerByUserId(station:GetAttribute("Occupant"))
 	if qui and serie[qui] then enCours = string.format("\n%s : %d", qui.DisplayName, serie[qui].n) end
-	local texte = "BARRE DE TRACTION\nRECORD : " .. (recordT and string.format("%s · %d", recordT.nom, recordT.n) or "—") .. enCours
-	for _, g in ipairs(panneauT:GetChildren()) do        -- le panneau a 2 faces
+	local texte = "BARRE DE TRACTION " .. (station:GetAttribute("Numero") or "") .. "\nRECORD : "
+		.. (s.record and string.format("%s · %d", s.record.nom, s.record.n) or "—") .. enCours
+	for _, g in ipairs(s.panneau:GetChildren()) do        -- le panneau a 2 faces
 		local t = g:IsA("SurfaceGui") and g:FindFirstChild("Texte")
 		if t then t.Text = texte end
 	end
 end
-if barreT then
-	majPanneau()
-	evenementTraction.OnServerEvent:Connect(function(joueur, quoi)
-		local r = joueur.Character and joueur.Character:FindFirstChild("HumanoidRootPart")
-		local pres = r and (r.Position - barreT.Position).Magnitude < 10
-		if quoi ~= "fin" and not pres then return end          -- "fin" marche de partout (mort, reapparu...)
-		local occupant = station:GetAttribute("Occupant")
-		if quoi == "debut" and not occupant then
-			station:SetAttribute("Occupant", joueur.UserId)
-			serie[joueur] = {n = 0, dernier = 0}
-		elseif quoi == "rep" and occupant == joueur.UserId and serie[joueur] then
-			local s = serie[joueur]
-			if os.clock() - s.dernier < 0.4 then return end
-			s.n += 1
-			s.dernier = os.clock()
-			if not recordT or s.n > recordT.n then recordT = {n = s.n, nom = joueur.DisplayName} end
-		elseif quoi == "fin" and occupant == joueur.UserId then
-			station:SetAttribute("Occupant", nil)
-			serie[joueur] = nil
-		end
-		majPanneau()
-	end)
-	Players.PlayerRemoving:Connect(function(joueur)
-		if station:GetAttribute("Occupant") == joueur.UserId then station:SetAttribute("Occupant", nil) end
-		serie[joueur] = nil
-	end)
+for _, m in ipairs(salle:GetChildren()) do
+	if m.Name == "BarreDeTraction" and m:FindFirstChild("BarreTraction") and m:FindFirstChild("PanneauTraction") then
+		stations[m] = {barre = m.BarreTraction, panneau = m.PanneauTraction}
+		majPanneau(m)
+	end
 end
+
+local function lacher(joueur)
+	local s = serie[joueur]
+	serie[joueur] = nil
+	if s and s.station:GetAttribute("Occupant") == joueur.UserId then
+		s.station:SetAttribute("Occupant", nil)
+		majPanneau(s.station)
+	end
+end
+evenementTraction.OnServerEvent:Connect(function(joueur, quoi, station)
+	if quoi == "fin" then lacher(joueur) return end           -- "fin" marche de partout (mort, reapparu...)
+	local st = typeof(station) == "Instance" and stations[station]
+	local r = joueur.Character and joueur.Character:FindFirstChild("HumanoidRootPart")
+	if not st or not r or (r.Position - st.barre.Position).Magnitude > 10 then return end
+	if quoi == "debut" and not station:GetAttribute("Occupant") then
+		lacher(joueur)
+		station:SetAttribute("Occupant", joueur.UserId)
+		serie[joueur] = {station = station, n = 0, dernier = 0}
+	elseif quoi == "rep" and serie[joueur] and serie[joueur].station == station then
+		local s = serie[joueur]
+		if os.clock() - s.dernier < 0.4 then return end
+		s.n += 1
+		s.dernier = os.clock()
+		if not st.record or s.n > st.record.n then st.record = {n = s.n, nom = joueur.DisplayName} end
+	end
+	majPanneau(station)
+end)
+Players.PlayerRemoving:Connect(lacher)
 
 print("Salle de sport prete")
