@@ -10,6 +10,7 @@
 --    VELO   les pedales tournent ; le pilote se penche, tient le guidon, et
 --           ses pieds SUIVENT les pedales (le triangle cuisse-mollet)
 --    SAC    a chaque coup ("Frapper"), un bras part en avant, gauche puis droit
+--    TAPIS  les rayures de la bande defilent a la vitesse du tapis
 --  Le velo marche pour TOUS les pilotes qu on voit ; le banc et le sac,
 --  seulement pour nous.
 -- =========================================================
@@ -80,8 +81,39 @@ local function trouverVelos()
 		if not selle:IsDescendantOf(workspace) then velos[selle] = nil end    -- streaming : il est reparti
 	end
 end
+
+-- ---- LES TAPIS : les rayures de la bande defilent, a la vitesse du tapis ----
+local tapis = {}       -- modele -> {bande, rayures, decalage}
+local function trouverTapis()
+	for _, m in ipairs(salle:GetChildren()) do
+		local bande = m:IsA("Model") and m.Name == "TapisDeCourse" and m:FindFirstChild("TapisCourse")
+		if bande and not tapis[m] then
+			local B = bande.CFrame
+			local rayures = {}
+			for _, r in ipairs(m:GetChildren()) do
+				if r.Name == "RayureTapis" then
+					local l = B:PointToObjectSpace(r.Position)
+					table.insert(rayures, {p = r, y = l.Y, z = l.Z})
+				end
+			end
+			tapis[m] = {modele = m, B = B, longueur = bande.Size.Z, rayures = rayures, decalage = 0}
+		end
+	end
+	for m in pairs(tapis) do
+		if not m:IsDescendantOf(workspace) then tapis[m] = nil end
+	end
+end
+local function defiler(t, dt)
+	t.decalage += (t.modele:GetAttribute("Vitesse") or 0) * dt
+	local L = t.longueur
+	for _, r in ipairs(t.rayures) do
+		-- vers l arriere (+Z) ; arrivee au bout, la rayure repart de devant
+		local z = (r.z + t.decalage + L / 2) % L - L / 2
+		r.p.CFrame = t.B * CFrame.new(0, r.y, z)
+	end
+end
 task.spawn(function()
-	while true do trouverVelos() task.wait(2) end
+	while true do trouverVelos() trouverTapis() task.wait(2) end
 end)
 
 local function tournerVelo(v, dt)
@@ -185,6 +217,8 @@ local barre, yBarreRepos = nil, math.huge
 local surLeVelo = {}     -- perso -> true : ceux qu on a poses sur un velo a l image d avant
 
 RunService.RenderStepped:Connect(function(dt)
+	for _, t in pairs(tapis) do defiler(t, dt) end
+
 	-- LES VELOS : les pedales tournent quand quelqu un est dessus, et on pose le pilote
 	local vus = {}
 	for selle, v in pairs(velos) do

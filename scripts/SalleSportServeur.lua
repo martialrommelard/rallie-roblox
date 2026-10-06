@@ -136,34 +136,97 @@ for _, sac in ipairs(salle:GetChildren()) do
 end
 
 -- =========================================================
---  4. LES TAPIS : la console dit qui court, et la distance
+--  4. LES TAPIS (des modeles TapisDeCourse : TapisDeCourse.lua)
+--  Chaque tapis a SA vitesse (l attribut "Vitesse" du modele). Deux boutons
+--  la changent (Q moins vite, E plus vite). La bande pousse le coureur vers
+--  l arriere a cette vitesse ; pour qu il puisse suivre, sa vitesse de
+--  marche monte tant qu il est sur le tapis. La console dit le niveau, qui
+--  court, et la distance.
 -- =========================================================
-local dejaCouru = {}      -- tapis -> distance (km)
+local VITESSES = {6, 10, 14, 18, 22, 26}     -- les crans des boutons
+local function niveau(v)
+	if v <= 8 then return "MARCHE", Color3.fromRGB(80, 220, 120)
+	elseif v <= 16 then return "FOOTING", Color3.fromRGB(255, 190, 60)
+	else return "SPRINT", Color3.fromRGB(255, 80, 60) end
+end
+
+local tapis = {}
+local function majConsole(t)
+	if not t.ecran then return end
+	local v = t.modele:GetAttribute("Vitesse") or 14
+	local nom, couleur = niveau(v)
+	t.ecran.TextColor3 = couleur
+	t.ecran.Text = string.format("TAPIS %d · %s\n%d km/h", t.modele:GetAttribute("Numero") or 0, nom, v)
+		.. (t.coureur and string.format("\n%s · %.2f km", t.coureur.DisplayName, t.km) or "")
+end
+for _, m in ipairs(salle:GetChildren()) do
+	local bande = m:IsA("Model") and m.Name == "TapisDeCourse" and m:FindFirstChild("TapisCourse")
+	if bande then
+		local t = {modele = m, bande = bande, ecran = texteDe(m:FindFirstChild("ConsoleTapis")), km = 0}
+		table.insert(tapis, t)
+		local function appliquer()
+			-- la bande "roule" vers l arriere du coureur (+Z de la bande)
+			bande.AssemblyLinearVelocity = bande.CFrame:VectorToWorldSpace(Vector3.new(0, 0, m:GetAttribute("Vitesse") or 14))
+			majConsole(t)
+		end
+		m:GetAttributeChangedSignal("Vitesse"):Connect(appliquer)
+		appliquer()
+		for _, b in ipairs({{"BoutonMoins", -1}, {"BoutonPlus", 1}}) do
+			local bouton = m:FindFirstChild(b[1])
+			local prompt = bouton and bouton:FindFirstChildOfClass("ProximityPrompt")
+			if prompt then
+				prompt.Triggered:Connect(function()
+					-- le cran le plus proche de la vitesse actuelle, puis un cran de plus ou de moins
+					local v, i = m:GetAttribute("Vitesse") or 14, 1
+					for k, x in ipairs(VITESSES) do
+						if math.abs(x - v) < math.abs(VITESSES[i] - v) then i = k end
+					end
+					m:SetAttribute("Vitesse", VITESSES[math.clamp(i + b[2], 1, #VITESSES)])
+				end)
+			end
+		end
+	end
+end
+
+local marcheNormale = {}     -- joueur -> sa vitesse de marche avant de monter sur un tapis
 task.spawn(function()
 	while true do
-		for _, bande in ipairs(salle:GetChildren()) do
-			if bande.Name == "TapisCourse" then
-				local console = texteDe(plusProcheDe("ConsoleTapis", bande.Position))
-				local coureur = nil
-				for _, j in ipairs(Players:GetPlayers()) do
-					local r = j.Character and j.Character:FindFirstChild("HumanoidRootPart")
-					if r then
-						local l = bande.CFrame:PointToObjectSpace(r.Position)
-						if math.abs(l.X) < bande.Size.X / 2 and math.abs(l.Z) < bande.Size.Z / 2 and l.Y > 0 and l.Y < 5 then coureur = j end
+		local surUnTapis = {}
+		for _, t in ipairs(tapis) do
+			local coureur, humCoureur = nil, nil
+			for _, j in ipairs(Players:GetPlayers()) do
+				local r = j.Character and j.Character:FindFirstChild("HumanoidRootPart")
+				local hum = j.Character and j.Character:FindFirstChildOfClass("Humanoid")
+				if r and hum then
+					local l = t.bande.CFrame:PointToObjectSpace(r.Position)
+					if math.abs(l.X) < t.bande.Size.X / 2 and math.abs(l.Z) < t.bande.Size.Z / 2 and l.Y > 0 and l.Y < 5 then
+						coureur, humCoureur = j, hum
 					end
 				end
-				if coureur then
-					-- 14 km/h pendant 0,25 seconde
-					dejaCouru[bande] = (dejaCouru[bande] or 0) + 14 / 3600 * 0.25
-					if console then console.Text = string.format("%s\n14 km/h · %.2f km", coureur.DisplayName, dejaCouru[bande]) end
-				elseif dejaCouru[bande] then
-					dejaCouru[bande] = nil
-					if console then console.Text = "TAPIS\n14 km/h" end
-				end
+			end
+			local v = t.modele:GetAttribute("Vitesse") or 14
+			if coureur then
+				surUnTapis[coureur] = true
+				marcheNormale[coureur] = marcheNormale[coureur] or humCoureur.WalkSpeed
+				humCoureur.WalkSpeed = math.max(marcheNormale[coureur], v + 4)    -- 4 de marge pour avancer
+				if t.coureur ~= coureur then t.coureur, t.km = coureur, 0 end
+				t.km += v / 3600 * 0.25                  -- v km/h pendant 0,25 seconde
+				majConsole(t)
+			elseif t.coureur then
+				t.coureur = nil
+				majConsole(t)
+			end
+		end
+		-- ceux qui sont descendus : on leur rend leur vitesse de marche
+		for j, vitesse in pairs(marcheNormale) do
+			if not surUnTapis[j] then
+				local hum = j.Character and j.Character:FindFirstChildOfClass("Humanoid")
+				if hum then hum.WalkSpeed = vitesse end
+				marcheNormale[j] = nil
 			end
 		end
 		task.wait(0.25)
 	end
 end)
 
-print("Salle de sport et simulateurs prets")
+print("Salle de sport prete")
