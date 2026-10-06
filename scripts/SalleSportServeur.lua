@@ -62,26 +62,24 @@ if banc and barre then
 end
 
 -- =========================================================
---  2. LES VELOS
+--  2. LES VELOS (des modeles VeloAppartement : VeloAppartement.lua)
+--  Ici on compte seulement les kilometres. Les pedales qui tournent et les
+--  jambes qui pedalent sont faites chez chaque joueur (Exercices) : c est
+--  plus fluide que de deplacer des pieces depuis le serveur.
 -- =========================================================
-for _, selle in ipairs(salle:GetChildren()) do
-	if selle.Name == "VeloSport" then
-		local pedalier = plusProcheDe("Pedalier", selle.Position)
-		local ecran = texteDe(plusProcheDe("EcranVelo", selle.Position))
-		local repos = pedalier and pedalier.CFrame
+for _, selle in ipairs(salle:GetDescendants()) do
+	if selle.Name == "VeloSport" and selle:IsA("Seat") then
+		local ecran = texteDe(selle.Parent:FindFirstChild("EcranVelo"))
 		local enCours = false
 		selle:GetPropertyChangedSignal("Occupant"):Connect(function()
-			if not selle.Occupant or enCours or not pedalier then return end
+			if not selle.Occupant or enCours then return end
 			enCours = true
 			local km = 0
 			while selle.Occupant do
-				-- le pedalier tourne autour de son axe (X, c est un cylindre)
-				pedalier.CFrame = pedalier.CFrame * CFrame.Angles(math.rad(18), 0, 0)
 				km += 0.0025
 				if ecran then ecran.Text = string.format("%.2f km", km) end
 				task.wait(0.05)
 			end
-			pedalier.CFrame = repos
 			enCours = false
 		end)
 	end
