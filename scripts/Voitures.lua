@@ -76,6 +76,12 @@ local function placerVoitures()
 			-- sur quelle place de la grille elle est : le bouton de depart du
 			-- spawn s en sert pour mettre chaque joueur dans SA voiture
 			v:SetAttribute("Place", place.Name)
+			-- son NUMERO de course, sur les portieres et les plaques
+			for _, t in ipairs(v:GetDescendants()) do
+				if t:IsA("TextLabel") and t.Name == "Numero" then
+					t.Text = (t.Text:find("RALLYE") and "RALLYE " or "") .. n
+				end
+			end
 			v.Parent = dossier
 			-- PivotTo deplace tout le modele d un bloc, en gardant ses pieces
 			-- assemblees. On le fait APRES l avoir mis dans le Workspace.

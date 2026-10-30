@@ -62,7 +62,7 @@ local function degatsDe(d, nom)
 	local x = d.degats[nom]
 	if type(x) ~= "table" then return {etat = 100, perdues = {}, usure = ""} end
 	return {etat = tonumber(x.etat) or 100, perdues = type(x.perdues) == "table" and x.perdues or {},
-		usure = type(x.usure) == "string" and x.usure or ""}     -- usure : "3:40,7:85" (morceau:PV)
+		usure = type(x.usure) == "string" and x.usure or ""}     -- usure : "Capot=40;Aileron=85" (morceau=PV)
 end
 
 local function pieces(joueur)
@@ -353,11 +353,10 @@ local function reparer(poste, joueur)
 	-- les morceaux uses sont noircis (comme en course) : ils redeviennent
 	-- propres pendant la reparation
 	local noircis = {}
-	for _, u in ipairs(string.split(x.usure, ",")) do
-		local i, pv = string.match(u, "^(%d+):(%d+)$")
-		local p = i and Catalogue.PIECES[tonumber(i)]
-		if p then
-			for _, partie in ipairs(Catalogue.partiesDe(voiture, {p.nom})) do
+	for _, u in ipairs(string.split(x.usure, ";")) do
+		local nomMorceau, pv = string.match(u, "^(.+)=(%d+)$")
+		if nomMorceau then
+			for _, partie in ipairs(Catalogue.partiesDe(voiture, {nomMorceau})) do
 				local propre = partie.Color
 				local sale = propre:Lerp(Color3.fromRGB(30, 28, 26), (1 - tonumber(pv) / 100) * 0.6)
 				partie.Color = sale

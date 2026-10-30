@@ -1,63 +1,47 @@
 -- ============================================================
---  LES DEGATS DES VOITURES
+--  LES DEGATS DE NOTRE VOITURE DE RALLY
 --  A placer dans ServerScriptService.
 --
---  CHAQUE MORCEAU S ABIME A PART. Les morceaux (rétroviseurs, phares,
---  portières, aileron... liste dans GarageCatalogue.PIECES) ont chacun
---  leurs POINTS DE VIE (PV), de 100 a 0 :
---    - seul le morceau TOUCHE perd des PV ;
---    - il NOIRCIT petit a petit (on voit qu il est abime) ;
---    - a 0, il SE DETACHE, tombe... et RESTE sur la piste jusqu a la
---      course suivante. C est un obstacle : une voiture qui le percute
---      s abime a son tour.
---  LA VOITURE, ELLE, NE SE DETRUIT JAMAIS (choix du 2026-10-30) : seuls
---  ses morceaux cassent. Son ETAT (attribut "Etat", la barre de
---  Course.client) dit juste combien elle est abimee, pour le prix de la
---  reparation au garage ; a 0 %, elle roule encore.
+--  LA VOITURE EST SOLIDE : elle n est jamais detruite, elle roule
+--  toujours. Ce sont ses MORCEAUX qui s abiment (capot, portieres, ailes,
+--  phares, aileron, pare-chocs... et les 4 roues) : chaque piece de la
+--  voiture porte l attribut "Morceau" (pose par le generateur
+--  VoitureRally.lua), et chaque morceau a ses POINTS DE VIE (PV), de 100
+--  a 0 :
+--    - c est LE MORCEAU TOUCHE qui s abime : la piece qui touche un mur,
+--      le decor, une autre voiture ou un morceau tombe. MEME UN FROTTEMENT
+--      compte (le long d une barriere, ca use vite) ;
+--    - il NOIRCIT petit a petit ;
+--    - a 0, il SE DETACHE (on casse sa soudure), tombe... et RESTE sur
+--      la piste jusqu a la course suivante : un obstacle qui abime les
+--      voitures qui le percutent ;
+--    - une ROUE detachee : le coin de la voiture tombe et FROTTE par
+--      terre (le chassis) : elle avance difficilement.
+--  Si la piece touchee n est pas un morceau (la caisse, le toit...), on
+--  abime le morceau le plus proche du point touche.
 --
---  COMMENT SAIT-ON QU IL Y A EU UN COUP ?
---   1. LE CONTACT : une partie de la carrosserie TOUCHE un mur, le decor,
---      une autre voiture ou un morceau tombe (evenement Touched). Plus on
---      va vite, plus ca abime. Meme un frottement compte.
---      Et si un MORCEAU tape LA ROUTE (le pare-chocs en retombant d un
---      saut...), lui seul s abime -- seulement s il la tape fort vers le
---      bas, pas quand on roule normalement.
---   2. LE CHOC : la vitesse change d un coup d une image a l autre (contre
---      un mur : 30, 50, 100 studs/s). On ne regarde que l HORIZONTALE :
---      retomber du tremplin ne doit pas abimer, ce saut est obligatoire.
---  OU ? On cherche LE MORCEAU LE PLUS PROCHE du point touche (pour un
---  choc : le cote oppose au changement de vitesse).
---
---  "Solidite" (Belier, amelioration Carrosserie) divise les degats.
---  Les degats RESTENT sur la voiture du joueur : on previent GarageServeur
+--  L ETAT de la voiture (attribut "Etat", la barre de Course.client) =
+--  la moyenne des PV de ses morceaux. Il sert au prix de la reparation.
+--  Les degats RESTENT d une course a l autre : on previent GarageServeur
 --  (BindableEvent "DegatsVoiture"), et on repare au garage.
 -- ============================================================
 
 local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage     = game:GetService("ServerStorage")
 
-local Catalogue = require(ReplicatedStorage:WaitForChild("GarageCatalogue"))
-
--- 1. le contact
-local CONTACT_BASE  = 0.3    -- % d etat perdus a chaque contact...
-local CONTACT_VIT   = 0.02   -- ...plus 0.02 % par stud/s (un frottement a 100 studs/s = 2.3 %)
-local CONTACT_PAUSE = 0.4    -- secondes entre deux contacts comptes
--- 2. le choc
-local SEUIL   = 18     -- studs/s d un coup : en dessous, ce n est pas un choc
-local FORCE   = 0.6    -- % d etat perdus par stud/s au-dessus du seuil
--- les morceaux
-local PV_PAR_POINT = 5    -- un morceau perd 5 PV pour 1 % d etat perdu (il casse bien avant la voiture)
-local PRES         = 6    -- un morceau a plus de 6 studs du point touche n est pas touche
-local NOIRCI       = 0.6  -- a 0 PV, la couleur est a 60 % vers le noir
-local ROUTE_SEUIL  = 12   -- un morceau qui tape la route a plus de 12 studs/s vers le bas...
-local ROUTE_FORCE  = 4    -- ...perd 4 PV par stud/s en plus
-local PROTEGE = 1.5     -- secondes apres le depart : on ne compte rien
-local MIN_MSG = 3       -- on ne previent pas pour une egratignure
-
-local ORANGE = Color3.fromRGB(255, 150, 60)
+-- ---- LES REGLAGES ----
+local PV_COUP      = 6     -- PV perdus a chaque contact...
+local PV_VITESSE   = 0.35  -- ...plus 0.35 PV par stud/s (un coup a 60 studs/s = 27 PV)
+local PAUSE        = 0.3   -- un meme morceau ne s abime qu une fois toutes les 0.3 s
+                           -- (un frottement continu = ~3 coups par seconde)
+local ROUE_SOLIDE  = 3     -- une roue est 3 fois plus solide
+local ROUTE_SEUIL  = 15    -- la route n abime que si on la tape a plus de 15 studs/s vers le bas
+local PRES         = 4     -- piece touchee sans morceau : le morceau le plus proche, a moins de 4 studs
+local PROTEGE      = 1.5   -- secondes apres le depart : on ne compte rien
+local NOIRCI       = 0.6   -- a 0 PV, la couleur est a 60 % vers le noir
 local SUIE   = Color3.fromRGB(30, 28, 26)
+local ORANGE = Color3.fromRGB(255, 150, 60)
 
 local dossier = workspace:WaitForChild("Voitures")
 local circuit = workspace:WaitForChild("Circuit")
@@ -79,32 +63,28 @@ if not tombes then
 	tombes.Parent = workspace
 end
 
--- Ce qu on touche SANS s abimer : la route (comme dans Voitures), les
--- cages et portiques du depart, le sol naturel, les personnages.
+-- La piste : la toucher n abime pas (sauf un coup violent vers le bas)
 local PISTE = {
 	Route = true, Damier = true, Grille = true, LigneDepart = true,
 	Tremplin = true, MarqueTremplin = true, PilierTremplin = true,
 	CagesDepart = true, Checkpoints = true,
 }
 local function estPiste(objet)
+	if objet:IsA("Terrain") or objet.Name == "Baseplate" then return true end
 	if not objet:IsDescendantOf(circuit) then return false end
 	local a = objet
 	while a.Parent ~= circuit do a = a.Parent end
 	return PISTE[a.Name] == true
 end
-local function sansDegat(objet)
-	if objet:IsA("Terrain") or objet.Name == "Baseplate" then return true end    -- le sol
-	local modele = objet:FindFirstAncestorOfClass("Model")
-	if modele and modele:FindFirstChildOfClass("Humanoid") then return true end
-	return estPiste(objet)
+local function estPersonnage(objet)
+	local m = objet:FindFirstAncestorOfClass("Model")
+	return m ~= nil and m:FindFirstChildOfClass("Humanoid") ~= nil
 end
 
--- ce qu on retient de chaque voiture
-local avant  = {}      -- sa vitesse horizontale a l image d avant
-local depuis = {}      -- l heure du depart (pour PROTEGE)
-local dernierContact = {}
-local morceaux = {}    -- [voiture] = { {i, nom, parties, couleurs}, ... }
-local morceauDe = {}   -- [partie] = le morceau dont elle fait partie
+-- ---- CE QU ON SAIT DE CHAQUE VOITURE ----
+-- morceaux[voiture] = { [nom] = {nom, pv, parties = {...}, couleurs = {...}, roue, moteur, dernier} }
+local morceaux = {}
+local depart = {}      -- [voiture] = l heure ou la course a commence pour elle
 
 local function voitureDe(objet)
 	local a = objet
@@ -114,257 +94,206 @@ local function voitureDe(objet)
 end
 
 local function piloteDe(voiture)
-	local siege = voiture:FindFirstChildWhichIsA("VehicleSeat", true)
+	local siege = voiture:FindFirstChild("DriveSeat")
 	local hum = siege and siege.Occupant
 	return hum and Players:GetPlayerFromCharacter(hum.Parent), siege
 end
 
--- Les morceaux de CETTE voiture (ceux qui ne sont pas deja tombes), avec
--- leur couleur neuve (pour noircir a partir d elle).
 local function morceauxDe(voiture)
 	if morceaux[voiture] then return morceaux[voiture] end
 	local liste = {}
-	for i, p in ipairs(Catalogue.PIECES) do
-		local parties = Catalogue.partiesDe(voiture, {p.nom})
-		if #parties > 0 then
-			local m = {i = i, nom = p.nom, parties = parties, couleurs = {}}
-			for _, partie in ipairs(parties) do
-				m.couleurs[partie] = partie.Color
-				morceauDe[partie] = m
+	-- l usure de la course d avant (posee par DepartCourse) : "Capot=40;Aileron=85"
+	local usure = {}
+	for _, x in ipairs(string.split(voiture:GetAttribute("Usure") or "", ";")) do
+		local nom, pv = string.match(x, "^(.+)=(%d+)$")
+		if nom then usure[nom] = tonumber(pv) end
+	end
+	for _, p in ipairs(voiture:GetDescendants()) do
+		local nom = p:IsA("BasePart") and p:GetAttribute("Morceau")
+		if nom then
+			local m = liste[nom]
+			if not m then
+				m = {nom = nom, pv = usure[nom] or 100, parties = {}, couleurs = {}}
+				liste[nom] = m
 			end
-			table.insert(liste, m)
+			table.insert(m.parties, p)
+			m.couleurs[p] = p.Color
+			-- une roue : son moteur (la charniere qui la tient)
+			if p:FindFirstChild("Moteur") then m.roue, m.moteur = p, p.Moteur end
 		end
 	end
 	morceaux[voiture] = liste
 	return liste
 end
 
--- Le point le plus proche de "p" sur la boite d une piece (pour un mur
--- de 100 studs, son centre est loin : on prend son point le plus proche).
+-- L ETAT de la voiture : la moyenne des PV de tous ses morceaux (ceux
+-- tombes comptent pour 0)
+local function calculerEtat(voiture)
+	local total, n = 0, 0
+	for _, m in pairs(morceauxDe(voiture)) do
+		total += m.pv
+		n += 1
+	end
+	local perdues = voiture:GetAttribute("Perdues") or ""
+	if perdues ~= "" then n += #string.split(perdues, ",") end
+	return (n > 0) and (total / n) or 100
+end
+
+-- Ce qu on envoie au garage : l usure et les morceaux perdus
+local function usureTexte(voiture)
+	local t = {}
+	for nom, m in pairs(morceauxDe(voiture)) do
+		if m.pv < 100 then table.insert(t, nom .. "=" .. math.floor(m.pv)) end
+	end
+	return table.concat(t, ";")
+end
+
+-- ---- UN MORCEAU SE DETACHE (et reste sur la piste) ----
+local function detacher(voiture, m)
+	local chassis = voiture:FindFirstChild("Chassis")
+	local centre = chassis and chassis.Position or m.parties[1].Position
+	local vitesse = chassis and chassis.AssemblyLinearVelocity or Vector3.zero
+	-- une roue : on enleve la charniere qui la tient a sa fusee
+	if m.moteur then m.moteur:Destroy() end
+	for _, partie in ipairs(m.parties) do
+		-- on casse sa soudure au chassis (pas celle de la jante a sa roue)
+		for _, w in ipairs(partie:GetChildren()) do
+			if w:IsA("WeldConstraint") and (w.Part0 == chassis or w.Part1 == chassis) then w:Destroy() end
+		end
+		for _, nc in ipairs(partie:GetChildren()) do
+			if nc:IsA("NoCollisionConstraint") then nc:Destroy() end
+		end
+		partie.Massless = false
+		partie:SetAttribute("DeVoiture", voiture.Name)
+		partie:SetAttribute("TombeA", os.clock())
+	end
+	for _, partie in ipairs(m.parties) do
+		partie.Parent = tombes
+	end
+	-- il part vers l exterieur, en tournant
+	for _, partie in ipairs(m.parties) do
+		if partie.AssemblyRootPart == partie then
+			local dehors = ((partie.Position - centre) * Vector3.new(1, 0, 1)).Unit + Vector3.new(0, 0.7, 0)
+			partie.AssemblyLinearVelocity = vitesse * 0.7 + dehors * 18
+			partie.AssemblyAngularVelocity = Vector3.new(math.random(-8, 8), math.random(-8, 8), math.random(-8, 8))
+			pcall(function() partie:SetNetworkOwner(nil) end)
+		end
+	end
+	morceauxDe(voiture)[m.nom] = nil
+	local perdues = voiture:GetAttribute("Perdues") or ""
+	voiture:SetAttribute("Perdues", (perdues == "") and m.nom or (perdues .. "," .. m.nom))
+end
+
+-- ---- ABIMER UN MORCEAU ----
+local function abimer(voiture, m, pv, raison)
+	if os.clock() - (m.dernier or 0) < PAUSE then return end   -- (un frottement : pas a chaque image)
+	m.dernier = os.clock()
+	pv = pv / (voiture:GetAttribute("Solidite") or 1) / (m.roue and ROUE_SOLIDE or 1)
+	m.pv = math.max(0, m.pv - pv)
+	-- il noircit petit a petit
+	local t = (1 - m.pv / 100) * NOIRCI
+	for _, partie in ipairs(m.parties) do
+		if m.couleurs[partie] then partie.Color = m.couleurs[partie]:Lerp(SUIE, t) end
+	end
+	local arrache = m.pv <= 0
+	if arrache then detacher(voiture, m) end
+
+	voiture:SetAttribute("Etat", calculerEtat(voiture))
+	local joueur = piloteDe(voiture)
+	if joueur then
+		if arrache then
+			info:FireClient(joueur, "💥 " .. m.nom .. " arraché(e) !", ORANGE, 2)
+		end
+		-- le garage garde l etat de SA voiture d une course a l autre
+		signal:Fire(joueur, voiture:GetAttribute("Modele"), voiture:GetAttribute("Etat"),
+			voiture:GetAttribute("Perdues") or "", usureTexte(voiture))
+		print(string.format("Degats : %s %s : %s -%.0f PV (reste %.0f)%s", joueur.Name, raison, m.nom, pv, m.pv,
+			arrache and " ARRACHE" or ""))
+	end
+end
+
+-- Le point le plus proche de "p" sur la boite d une piece
 local function pointProche(piece, p)
 	local l = piece.CFrame:PointToObjectSpace(p)
 	local d = piece.Size / 2
 	return piece.CFrame * Vector3.new(math.clamp(l.X, -d.X, d.X), math.clamp(l.Y, -d.Y, d.Y), math.clamp(l.Z, -d.Z, d.Z))
 end
 
--- Le morceau le plus proche d un point (nil s il est trop loin)
-local function morceauPres(voiture, point)
+-- Le morceau d une piece : le sien, sinon le plus proche du point touche
+local function morceauDe(voiture, partie, point)
+	local nom = partie:GetAttribute("Morceau")
+	local liste = morceauxDe(voiture)
+	if nom then return liste[nom] end
 	local meilleur, dMin = nil, PRES
-	for _, m in ipairs(morceauxDe(voiture)) do
-		for _, partie in ipairs(m.parties) do
-			local d = (pointProche(partie, point) - point).Magnitude
+	for _, m in pairs(liste) do
+		for _, p in ipairs(m.parties) do
+			local d = (pointProche(p, point) - point).Magnitude
 			if d < dMin then meilleur, dMin = m, d end
 		end
 	end
 	return meilleur
 end
 
--- ---- UN MORCEAU SE DETACHE (et reste sur la piste) ----
-local function detacher(voiture, m)
-	local siege = voiture:FindFirstChildWhichIsA("VehicleSeat", true)
-	local centre = siege.CFrame * Vector3.new(1.1, 1, 0)
-	for _, partie in ipairs(m.parties) do
-		-- on casse ses soudures et on le sort de la voiture
-		for _, j in ipairs(partie:GetJoints()) do j:Destroy() end
-		for _, w in ipairs(partie:GetChildren()) do
-			if w:IsA("JointInstance") or w:IsA("WeldConstraint") then w:Destroy() end
+-- ---- LE CONTACT ----
+local function surContact(voiture, partie, autre)
+	if partie.Parent == tombes then return end                  -- deja tombee
+	if not workspace:GetAttribute("CourseEnCours") then return end
+	if voitureDe(autre) == voiture or estPersonnage(autre) then return end
+	-- un morceau qui vient de tomber de CETTE voiture : pas tout de suite
+	if autre:GetAttribute("DeVoiture") == voiture.Name and os.clock() - (autre:GetAttribute("TombeA") or 0) < 1.5 then return end
+	if not (depart[voiture] and os.clock() - depart[voiture] > PROTEGE) then return end
+	local _, siege = piloteDe(voiture)
+	local chassis = voiture:FindFirstChild("Chassis")
+	if not chassis then return end
+	local vitesse = (chassis.AssemblyLinearVelocity - autre.AssemblyLinearVelocity).Magnitude
+
+	if estPiste(autre) then
+		-- LA ROUTE : seulement un coup violent vers le bas (une reception
+		-- de saut qui tape le pare-chocs). Les roues roulent dessus : rien.
+		local bas = -chassis.AssemblyLinearVelocity.Y
+		if bas > ROUTE_SEUIL and partie:GetAttribute("Morceau") and not partie:FindFirstChild("Moteur") then
+			local m = morceauxDe(voiture)[partie:GetAttribute("Morceau")]
+			if m then abimer(voiture, m, PV_COUP + (bas - ROUTE_SEUIL) * 2, "route") end
 		end
-		partie.Anchored = false
-		partie.Massless = false
-		partie.CanCollide = true
-		partie.CanTouch = true
-		-- il vient de cette voiture : il ne la touche pas tout de suite (sinon
-		-- il l abimerait en partant)
-		partie:SetAttribute("DeVoiture", voiture.Name)
-		partie:SetAttribute("TombeA", os.clock())
-		partie.Parent = tombes
-		-- il part vers l exterieur, en tournant
-		local dehors = (partie.Position - centre).Unit + Vector3.new(0, 0.8, 0)
-		partie.AssemblyLinearVelocity = siege.AssemblyLinearVelocity * 0.6 + dehors * 20
-		partie.AssemblyAngularVelocity = Vector3.new(math.random(-10, 10), math.random(-10, 10), math.random(-10, 10))
-		pcall(function() partie:SetNetworkOwner(nil) end)
+		return
 	end
-	-- il ne fait plus partie de la voiture
-	local liste = morceauxDe(voiture)
-	for k, x in ipairs(liste) do
-		if x == m then table.remove(liste, k) break end
-	end
-	local perdues = voiture:GetAttribute("Perdues") or ""
-	voiture:SetAttribute("Perdues", (perdues == "") and m.nom or (perdues .. "," .. m.nom))
-	voiture:SetAttribute("PV" .. m.i, nil)
+	local point = pointProche(partie, pointProche(autre, partie.Position))
+	local m = morceauDe(voiture, partie, point)
+	if m then abimer(voiture, m, PV_COUP + vitesse * PV_VITESSE, "contact " .. autre.Name) end
 end
 
--- ---- UN MORCEAU S ABIME ----
-local function abimerMorceau(voiture, m, pv)
-	local reste = math.max(0, (voiture:GetAttribute("PV" .. m.i) or 100) - pv)
-	voiture:SetAttribute("PV" .. m.i, reste)
-	-- il noircit petit a petit
-	local t = (1 - reste / 100) * NOIRCI
-	for _, partie in ipairs(m.parties) do
-		partie.Color = m.couleurs[partie]:Lerp(SUIE, t)
-	end
-	if reste <= 0 then
-		detacher(voiture, m)
-		return true
-	end
-	return false
-end
-
--- Le texte des PV des morceaux pour le garage : "3:40,7:85" (numero:PV)
-local function usure(voiture)
-	local t = {}
-	for _, m in ipairs(morceauxDe(voiture)) do
-		local pv = voiture:GetAttribute("PV" .. m.i)
-		if pv and pv < 100 then table.insert(t, m.i .. ":" .. math.floor(pv)) end
-	end
-	return table.concat(t, ",")
-end
-
--- La fumee et le feu : poses sur le siege, allumes selon l etat.
-local function effets(siege, etat)
-	local fumee = siege:FindFirstChild("FumeeDegats")
-	if not fumee then
-		fumee = Instance.new("Smoke")
-		fumee.Name = "FumeeDegats"
-		fumee.Color = Color3.fromRGB(60, 60, 60)
-		fumee.Size = 4
-		fumee.RiseVelocity = 6
-		fumee.Enabled = false
-		fumee.Parent = siege
-		local feu = Instance.new("Fire")
-		feu.Name = "FeuDegats"
-		feu.Size = 6
-		feu.Enabled = false
-		feu.Parent = siege
-	end
-	fumee.Enabled = etat < 50
-	siege.FeuDegats.Enabled = etat < 25
-end
-
--- ---- ABIMER : la voiture perd "perte" %, le morceau pres du point touche aussi ----
-local function abimer(voiture, perte, point, raison)
-	local etat = voiture:GetAttribute("Etat")
-	if not etat or etat <= 0 then return end
-	local joueur, siege = piloteDe(voiture)
-	perte = perte / (voiture:GetAttribute("Solidite") or 1)
-	etat = math.max(0, etat - perte)
-	voiture:SetAttribute("Etat", etat)
-
-	local m = morceauPres(voiture, point)
-	local parti = m and abimerMorceau(voiture, m, perte * PV_PAR_POINT)
-
-	if joueur then
-		if parti then
-			info:FireClient(joueur, "💥 " .. m.nom .. " arraché(e) !", ORANGE, 2)
-		elseif perte >= MIN_MSG and etat > 0 then
-			info:FireClient(joueur, "💥 Choc !  −" .. math.floor(perte) .. " %", ORANGE, 1.5)
-		end
-		-- le garage garde l etat de SA voiture d une course a l autre
-		signal:Fire(joueur, voiture:GetAttribute("Modele"), etat, voiture:GetAttribute("Perdues") or "", usure(voiture))
-		print(string.format("Degats : %s %s -%.1f %% (reste %.0f %%)%s", joueur.Name, raison, perte, etat,
-			m and (" sur " .. m.nom .. (parti and " (ARRACHE)" or "")) or ""))
-	end
-	if siege then effets(siege, etat) end
-	-- (a 0 % : rien de plus, elle n est jamais detruite)
-end
-
--- Un MORCEAU qui tape la route : lui seul s abime (la voiture garde son etat)
-local function taperRoute(voiture, m, vitesseVerticale)
-	if os.clock() - (m.dernier or 0) < CONTACT_PAUSE then return end   -- un seul coup par rebond
-	m.dernier = os.clock()
-	local joueur = piloteDe(voiture)
-	local pv = (vitesseVerticale - ROUTE_SEUIL) * ROUTE_FORCE / (voiture:GetAttribute("Solidite") or 1)
-	local parti = abimerMorceau(voiture, m, pv)
-	if joueur then
-		if parti then info:FireClient(joueur, "💥 " .. m.nom .. " arraché(e) !", ORANGE, 2) end
-		signal:Fire(joueur, voiture:GetAttribute("Modele"), voiture:GetAttribute("Etat"), voiture:GetAttribute("Perdues") or "", usure(voiture))
-		print(string.format("Degats : %s route -%.0f PV sur %s%s", joueur.Name, pv, m.nom, parti and " (ARRACHE)" or ""))
-	end
-end
-
--- ---- 1. LE CONTACT ----
 local function brancher(voiture)
 	if voiture:GetAttribute("DegatsBranches") then return end
 	voiture:SetAttribute("DegatsBranches", true)
-	-- l usure de la course d avant (posee par DepartCourse) : on noircit
-	for _, m in ipairs(morceauxDe(voiture)) do
-		local pv = voiture:GetAttribute("PV" .. m.i)
-		if pv then abimerMorceau(voiture, m, 0) end
+	-- l usure de la course d avant : on noircit tout de suite
+	for _, m in pairs(morceauxDe(voiture)) do
+		local t = (1 - m.pv / 100) * NOIRCI
+		for _, partie in ipairs(m.parties) do partie.Color = m.couleurs[partie]:Lerp(SUIE, t) end
 	end
+	voiture:SetAttribute("Etat", calculerEtat(voiture))
 	for _, partie in ipairs(voiture:GetDescendants()) do
-		if partie:IsA("BasePart") and partie:FindFirstAncestor("Body") then
+		if partie:IsA("BasePart") and partie.CanTouch and partie.Name ~= "DriveSeat" then
 			partie.Touched:Connect(function(autre)
-				if partie.Parent == tombes then return end        -- ce morceau est deja tombe
-				if not workspace:GetAttribute("CourseEnCours") then return end
-				if voitureDe(autre) == voiture then return end
-				-- un MORCEAU qui tape la route fort vers le bas
-				if estPiste(autre) then
-					local _, siege = piloteDe(voiture)
-					local m = morceauDe[partie]
-					local bas = siege and -siege.AssemblyLinearVelocity.Y or 0
-					if m and m.parties[1].Parent ~= tombes and bas > ROUTE_SEUIL and depuis[voiture]
-						and os.clock() - depuis[voiture] > PROTEGE then
-						taperRoute(voiture, m, bas)
-					end
-					return
-				end
-				if sansDegat(autre) then return end
-				-- un morceau qui vient de tomber de CETTE voiture : pas tout de suite
-				if autre:GetAttribute("DeVoiture") == voiture.Name and os.clock() - (autre:GetAttribute("TombeA") or 0) < 1.5 then return end
-				local joueur, siege = piloteDe(voiture)
-				if not (joueur and depuis[voiture] and os.clock() - depuis[voiture] > PROTEGE) then return end
-				if os.clock() - (dernierContact[voiture] or 0) < CONTACT_PAUSE then return end
-				dernierContact[voiture] = os.clock()
-				-- la vitesse de l un PAR RAPPORT a l autre (une voiture qui me
-				-- rentre dedans compte aussi)
-				local vitesse = (siege.AssemblyLinearVelocity - autre.AssemblyLinearVelocity).Magnitude
-				-- le point touche : sur MA partie, le plus pres de l objet
-				local point = pointProche(partie, pointProche(autre, partie.Position))
-				abimer(voiture, CONTACT_BASE + vitesse * CONTACT_VIT, point, "contact " .. autre.Name)
+				surContact(voiture, partie, autre)
 			end)
 		end
 	end
 end
 
--- ---- 2. LE CHOC ----
-RunService.Heartbeat:Connect(function()
-	local enCourse = workspace:GetAttribute("CourseEnCours") == true
-	for _, voiture in ipairs(dossier:GetChildren()) do
-		local _, siege = piloteDe(voiture)
-		if voiture:GetAttribute("Etat") then brancher(voiture) end
-		if siege and siege.Occupant and enCourse and voiture:GetAttribute("Etat") then
-			depuis[voiture] = depuis[voiture] or os.clock()
-			local v = siege.AssemblyLinearVelocity
-			local plat = Vector3.new(v.X, 0, v.Z)
-			if avant[voiture] and os.clock() - depuis[voiture] > PROTEGE then
-				local saut = plat - avant[voiture]
-				if saut.Magnitude > SEUIL then
-					-- poussee vers l arriere = touchee devant : le point touche
-					-- est du cote OPPOSE au changement de vitesse, au bord de
-					-- la carrosserie (9 de long, 4.5 de large depuis le centre)
-					local l = siege.CFrame:VectorToObjectSpace(-saut).Unit
-					local point = siege.CFrame * Vector3.new(1.1 + l.X * 4.5, 1, l.Z * 9)
-					abimer(voiture, (saut.Magnitude - SEUIL) * FORCE, point, "choc")
-				end
+-- Une voiture qui part : on la branche (DepartCourse lui a donne "Modele")
+workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
+	if workspace:GetAttribute("CourseEnCours") then
+		tombes:ClearAllChildren()             -- on ramasse les morceaux de la course d avant
+		for _, voiture in ipairs(dossier:GetChildren()) do
+			if voiture:GetAttribute("Modele") then
+				depart[voiture] = os.clock()
+				brancher(voiture)
 			end
-			avant[voiture] = plat
-		else
-			avant[voiture], depuis[voiture] = nil, nil
 		end
 	end
 end)
 
--- une voiture detruite ou remplacee : on oublie ce qu on savait d elle
+-- une voiture remplacee : on oublie ce qu on savait d elle
 dossier.ChildRemoved:Connect(function(voiture)
-	for _, m in ipairs(morceaux[voiture] or {}) do
-		for _, partie in ipairs(m.parties) do morceauDe[partie] = nil end
-	end
-	avant[voiture], depuis[voiture], dernierContact[voiture], morceaux[voiture] = nil, nil, nil, nil
-end)
-
--- une NOUVELLE course : on ramasse les morceaux tombes de la precedente
-workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
-	if workspace:GetAttribute("CourseEnCours") then
-		tombes:ClearAllChildren()
-	end
+	morceaux[voiture], depart[voiture] = nil, nil
 end)

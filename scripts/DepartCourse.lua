@@ -40,8 +40,8 @@ end
 -- ---- SA VOITURE DU GARAGE ----
 -- GarageServeur a pose sur le joueur les reglages de sa voiture
 -- (attributs G_Puissance...). On les recopie sur la voiture ou il va
--- s asseoir : le module "A-Chassis Tune" les lit quand il demarre, le
--- script Degats lit Solidite. Et on la repeint de SA couleur.
+-- s asseoir : le module PiloteRally les lit en roulant, le script
+-- Degats lit Solidite. Et on la repeint de SA couleur.
 local Catalogue = require(ReplicatedStorage:WaitForChild("GarageCatalogue"))
 local REGLAGES = {"Puissance", "VitesseMax", "Freinage", "Solidite"}
 
@@ -53,13 +53,10 @@ local function equiper(voiture, joueur)
 	if couleur then Catalogue.peindre(voiture, couleur) end
 	voiture:SetAttribute("Modele", joueur:GetAttribute("G_Voiture") or "Jesko")
 	-- SES DEGATS de la course d avant (ils restent jusqu a la reparation
-	-- au garage) : l usure de chaque morceau ("3:40" = le morceau 3 a 40
-	-- PV, le script Degats le noircit), son etat, et les morceaux perdus
-	-- qu on enleve
-	for _, x in ipairs(string.split(joueur:GetAttribute("G_Usure") or "", ",")) do
-		local i, pv = string.match(x, "^(%d+):(%d+)$")
-		if i then voiture:SetAttribute("PV" .. i, tonumber(pv)) end
-	end
+	-- au garage) : l usure de chaque morceau ("Capot=40;Aileron=85", le
+	-- script Degats la lit et noircit), son etat, et les morceaux perdus
+	-- qu on enleve (une roue perdue : la voiture part sur 3 roues !)
+	voiture:SetAttribute("Usure", joueur:GetAttribute("G_Usure") or "")
 	voiture:SetAttribute("Etat", joueur:GetAttribute("G_Etat") or 100)
 	local perdues = joueur:GetAttribute("G_Perdues") or ""
 	voiture:SetAttribute("Perdues", perdues)

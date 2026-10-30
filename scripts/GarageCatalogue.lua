@@ -6,11 +6,12 @@
 --  l ECRAN (Garage.client : ce qu on affiche). Une seule liste pour les
 --  deux : changer un prix ici le change partout.
 --
---  Toutes les voitures ont la MEME carrosserie (le chassis A-Chassis de la
---  Jesko) : ce qui change, c est la peinture et les reglages. Les chiffres
---  sont des MULTIPLICATEURS (1 = la Jesko d origine). Le module
---  "A-Chassis Tune" de la voiture les lit (Puissance, VitesseMax,
+--  Toutes les voitures ont la MEME carrosserie (NOTRE voiture de rally,
+--  generateur VoitureRally.lua) : ce qui change, c est la peinture et les
+--  reglages. Les chiffres sont des MULTIPLICATEURS (1 = la voiture de
+--  base). Le module PiloteRally les lit (Puissance, VitesseMax,
 --  Freinage) ; le script Degats lit Solidite.
+--  (La 1re s appelle encore "Jesko" : c est son nom dans les sauvegardes.)
 -- ============================================================
 
 local Catalogue = {}
@@ -57,58 +58,26 @@ Catalogue.COULEURS = {
 	{nom = "Noir",      couleur = Color3.fromRGB(25, 25, 30)},
 }
 
--- Les pieces de la carrosserie qu on repeint (les autres : vitres,
--- chrome, phares... gardent leur couleur). Mesure sur la Jesko.
-Catalogue.PEINTURE = {["Paint"] = true, ["Paint L"] = true, ["Paint R"] = true, ["PareChocsAvant"] = true}
-
--- LES PIECES QUI PEUVENT TOMBER dans un choc, rangees par COTE de la
--- voiture. Chaque piece = une ou plusieurs parties du modele (leur nom).
--- Dans chaque cote, les petites d abord, les grosses a la fin.
--- (PareChocsAvant et PiedAileron : renommees le 2026-10-30, elles
--- s appelaient "Paint" et "Paint 2" comme d autres parties.)
-Catalogue.PIECES = {
-	{nom = "Rétroviseur gauche", cote = "GAUCHE", parties = {"Mirror L"}},
-	{nom = "Écope gauche",       cote = "GAUCHE", parties = {"CF L", "Badge L"}},
-	{nom = "Portière gauche",    cote = "GAUCHE", parties = {"Paint L", "Window(s) L"}},
-	{nom = "Rétroviseur droit",  cote = "DROITE", parties = {"Mirror R"}},
-	{nom = "Écope droite",       cote = "DROITE", parties = {"CF R"}},
-	{nom = "Portière droite",    cote = "DROITE", parties = {"Paint R", "Window(s) R"}},
-	{nom = "Logo",               cote = "AVANT",  parties = {"Koenigsegg Badge"}},
-	{nom = "Phare gauche",       cote = "AVANT",  parties = {"F L L"}},
-	{nom = "Phare droit",        cote = "AVANT",  parties = {"F L R"}},
-	{nom = "Bandeau de phares",  cote = "AVANT",  parties = {"DRLs", "Daytime"}},
-	{nom = "Pare-chocs avant",   cote = "AVANT",  parties = {"PareChocsAvant"}},
-	{nom = "Feu arrière gauche", cote = "ARRIERE", parties = {"R L L"}},
-	{nom = "Feu arrière droit",  cote = "ARRIERE", parties = {"R L R"}},
-	{nom = "Aileron",            cote = "ARRIERE", parties = {"Badges", "PiedAileron"}},
-}
+-- Les pieces qu on repeint : celles qui portent l attribut "Peinture"
+-- (pose par le generateur VoitureRally.lua sur la caisse, le capot, les
+-- portieres, les ailes, l aileron...). Les vitres, phares, plastiques
+-- noirs gardent leur couleur.
 
 -- LA REPARATION au garage : 1 piece 🪙 par tranche de 10 % abimes
--- (commencee), et 2 par piece perdue.
+-- (commencee), et 2 par morceau perdu.
 function Catalogue.prixReparation(etat, perdues)
 	return math.ceil((100 - etat) / 10) + 2 * #perdues
 end
 
-function Catalogue.piece(nom)
-	for _, p in ipairs(Catalogue.PIECES) do
-		if p.nom == nom then return p end
-	end
-	return nil
-end
-
--- Les parties du modele qui forment ces pieces (pour les enlever ou les
--- faire tomber). Rend une liste de BaseParts.
-function Catalogue.partiesDe(modele, nomsPieces)
-	local voulues = {}
-	for _, nom in ipairs(nomsPieces) do
-		local p = Catalogue.piece(nom)
-		if p then
-			for _, n in ipairs(p.parties) do voulues[n] = true end
-		end
-	end
+-- Les parties du modele qui forment ces MORCEAUX (leur attribut
+-- "Morceau" : "Capot", "Aileron", "Roue avant gauche"...).
+-- Rend une liste de BaseParts.
+function Catalogue.partiesDe(modele, nomsMorceaux)
+	local voulus = {}
+	for _, nom in ipairs(nomsMorceaux) do voulus[nom] = true end
 	local liste = {}
 	for _, d in ipairs(modele:GetDescendants()) do
-		if d:IsA("BasePart") and voulues[d.Name] then table.insert(liste, d) end
+		if d:IsA("BasePart") and voulus[d:GetAttribute("Morceau") or ""] then table.insert(liste, d) end
 	end
 	return liste
 end
@@ -141,7 +110,7 @@ end
 -- sur l ecran pour la vitrine du garage).
 function Catalogue.peindre(modele, couleur)
 	for _, p in ipairs(modele:GetDescendants()) do
-		if p:IsA("BasePart") and Catalogue.PEINTURE[p.Name] then
+		if p:IsA("BasePart") and p:GetAttribute("Peinture") then
 			p.Color = couleur
 		end
 	end
