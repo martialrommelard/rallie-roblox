@@ -33,10 +33,11 @@ local FREIN       = 6000   -- la force de chaque roue pour freiner (x Freinage)
 local ROUE_LIBRE  = 150    -- on ne touche a rien : elle ralentit doucement
 local AVANCE_ROUE = 25     -- antipatinage : la roue va au plus 25 studs/s plus vite que la voiture
 local BRAQUAGE    = 35     -- l angle des roues avant a l arret (degres)...
-local BRAQUAGE_VITE = 15   -- ...et a pleine vitesse
+local BRAQUAGE_VITE = 18   -- ...et a pleine vitesse
 local ADHERENCE   = 10     -- combien on enleve de glissade par seconde (plus = plus colle)
-local VIRAGE      = 2.4    -- vitesse de rotation voulue a fond de volant (radians/s), a vitesse moyenne...
-local VIRAGE_VITE = 1.3    -- ...et a pleine vitesse (sinon c est trop nerveux)
+local VIRAGE      = 2.6    -- vitesse de rotation voulue a fond de volant (radians/s), a vitesse moyenne...
+local VIRAGE_VITE = 1.8    -- ...et a pleine vitesse. (Avant : 1.3. Calcul : l epingle fait 43 studs
+                           -- de rayon ; a 80 studs/s il faut 80 / 43 = 1.86 rad/s, on n avait que 1.66)
 local AIDE_VIRAGE = 6      -- a quelle vitesse la voiture rejoint cette rotation
 local SOL         = 3.5    -- au sol si le dessous du chassis est a moins de 3.5 studs de quelque chose
 local SENS        = -1     -- le sens de rotation des roues (mesure : -1 = elles poussent vers l avant)
@@ -46,8 +47,13 @@ local SENS_VOLANT = -1     -- le sens de la direction (mesure : -1 = SteerFloat 
 local infos = setmetatable({}, {__mode = "k"})
 
 local function infosDe(voiture)
-	if infos[voiture] then return infos[voiture] end
+	-- On garde ce qu on a trouve... sauf si la voiture etait INCOMPLETE
+	-- (avec le streaming, une roue peut arriver chez le joueur en retard :
+	-- elle n aurait jamais braque). Pendant 5 s, on recommence alors.
+	local deja = infos[voiture]
+	if deja and (deja.complete or os.clock() - deja.cree > 5) then return deja end
 	local x = {
+		cree = deja and deja.cree or os.clock(),
 		siege = voiture:FindFirstChild("DriveSeat"),
 		chassis = voiture:FindFirstChild("Chassis"),
 		roues = {},
@@ -79,6 +85,7 @@ local function infosDe(voiture)
 			})
 		end
 	end
+	x.complete = #x.roues == 4 and x.roues[1].direction ~= nil and x.roues[2].direction ~= nil
 	infos[voiture] = x
 	return x
 end

@@ -414,6 +414,9 @@ conduite.Enabled = true
 conduite.Parent = voiture
 
 voiture.WorldPivot = CFrame.new(0, HAUT_PIVOT, 0)    -- l avant vers -Z
+-- elle arrive D UN BLOC chez le joueur (avec le streaming, une roue
+-- arrivee en retard ne braquait pas)
+voiture.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 voiture.Parent = ServerStorage
 
 print(string.format("Voiture de rally : %d pieces, masse %.0f, ressorts %.0f (amortis %.0f)",
