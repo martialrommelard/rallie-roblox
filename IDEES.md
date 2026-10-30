@@ -48,9 +48,10 @@ On coche une case quand l'idée est faite. **On avance dans l'ordre des priorit�
   chaque MORCEAU s'use à part (seul celui touché), noircit, puis se détache
   et reste sur la piste comme obstacle. La voiture, elle, n'est JAMAIS
   détruite. Les dégâts restent après la course : on répare aux 4 postes du garage.)*
-- [ ] **Piste secondaire qui passe par les garages** (comme un arrêt au stand) :
-  on y répare la voiture et on prend un boost, mais on perd quelques secondes.
-  *(Va avec les dégâts — pas encore faite.)*
+- [x] **Piste secondaire qui passe par les garages** (comme un arrêt au stand) :
+  on y répare la voiture, mais on perd quelques secondes. *(2026-10-30 : les
+  STANDS en face du spawn, 6 écuries, limiteur 40, réparation « un peu »
+  à l'arrêt devant SON écurie. Pas de boost.)*
 - [x] **Configurer sa voiture sans être dedans** : le GARAGE sous le spawn
   (2026-10-30), bornes « Ouvrir le garage ».
 - [x] **Améliorer sa voiture avec des pièces** 🪙, sauvegardé (DataStore
