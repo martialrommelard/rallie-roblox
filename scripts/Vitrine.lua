@@ -115,8 +115,11 @@ for k, seuil in ipairs(seuils) do
 	local function ici(x, y, z) return base * CFrame.new(x, y, z) end
 
 	-- 2. LA BAIE VITREE et ses montants
-	local baie = piece("BaieVitree", Vector3.new(largeur, H_VITRE, 0.5), ici(0, H_VITRE / 2, 0), VERRE, Enum.Material.Glass)
+	-- (pas en matiere Glass : derriere du Glass, Roblox n affiche pas les
+	-- textes des panneaux ! Du plastique tres transparent, un peu brillant)
+	local baie = piece("BaieVitree", Vector3.new(largeur, H_VITRE, 0.5), ici(0, H_VITRE / 2, 0), VERRE)
 	baie.Transparency = 0.85      -- tres claire : on doit voir les voitures, pas la vitre
+	baie.Reflectance = 0.1
 	baie.CastShadow = false
 	local n = math.max(1, math.round(largeur / PAS_MONTANT))
 	for i = 0, n do
@@ -167,14 +170,16 @@ for k, seuil in ipairs(seuils) do
 		local g = Instance.new("SurfaceGui")
 		g.Face = Enum.NormalId.Front            -- vers la vitre (et ceux qui regardent)
 		g.PixelsPerStud = 30
+		g.LightInfluence = 0                    -- lisible meme dans l ombre
 		local bande = Instance.new("Frame")
 		bande.Size = UDim2.new(1, 0, 0.08, 0)
 		bande.BackgroundColor3 = info.couleur
 		bande.BorderSizePixel = 0
 		bande.Parent = g
-		texte(g, info.nom, UDim2.new(1, 0, 0.38, 0), UDim2.new(0, 0, 0.1, 0), Color3.new(1, 1, 1))
-		texte(g, (info.prix == 0) and "GRATUITE" or (info.prix .. " 🪙"), UDim2.new(1, 0, 0.2, 0), UDim2.new(0, 0, 0.48, 0), Color3.fromRGB(255, 205, 60))
-		texte(g, info.texte, UDim2.new(0.94, 0, 0.26, 0), UDim2.new(0.03, 0, 0.7, 0), Color3.fromRGB(210, 215, 225), Enum.Font.Gotham)
+		-- (pas d emoji : sur un panneau, Roblox les affiche en carre)
+		texte(g, info.nom,UDim2.new(0.94, 0, 0.34, 0), UDim2.new(0.03, 0, 0.12, 0), Color3.new(1, 1, 1))
+		texte(g, (info.prix == 0) and "GRATUITE" or (info.prix .. " PIÈCES"), UDim2.new(1, 0, 0.2, 0), UDim2.new(0, 0, 0.47, 0), Color3.fromRGB(255, 205, 60))
+		texte(g, info.texte, UDim2.new(0.94, 0, 0.26, 0), UDim2.new(0.03, 0, 0.69, 0), Color3.fromRGB(225, 228, 235), Enum.Font.GothamMedium)
 		g.Parent = panneau
 		pied.Parent, panneau.Parent = vitrine, vitrine
 	end
@@ -184,8 +189,9 @@ for k, seuil in ipairs(seuils) do
 	local g = Instance.new("SurfaceGui")
 	g.Face = Enum.NormalId.Front
 	g.PixelsPerStud = 15
+	g.LightInfluence = 0
 	texte(g, "SHOWROOM", UDim2.new(1, 0, 0.62, 0), UDim2.new(0, 0, 0.04, 0), NEON)
-	texte(g, "Ces voitures s'achètent au GARAGE, sous le spawn 🔧", UDim2.new(1, 0, 0.26, 0), UDim2.new(0, 0, 0.7, 0), Color3.new(1, 1, 1), Enum.Font.GothamBold)
+	texte(g, "Ces voitures s'achètent au GARAGE, sous le spawn", UDim2.new(1, 0, 0.26, 0), UDim2.new(0, 0, 0.7, 0), Color3.new(1, 1, 1), Enum.Font.GothamBold)
 	g.Parent = fond
 	piece("NeonShowroom", Vector3.new(math.min(60, largeur - 10), 0.4, 0.5), ici(0, 21.3, profondeur + 4), NEON, Enum.Material.Neon)
 end

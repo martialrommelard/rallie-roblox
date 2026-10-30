@@ -109,11 +109,26 @@ local function piece(nom, taille, cf, couleur, matiere, parent)
 	return p
 end
 
--- un texte sur une face d une piece
+-- un texte sur une face d une piece, LISIBLE (2026-10-30) :
+--  - Roblox ne fait pas de lettres de plus de 100 pixels : on regle les
+--    pixels par stud pour qu UNE LIGNE fasse ~125 pixels de haut (avant :
+--    25 par stud, les lettres restaient petites sur les grands panneaux) ;
+--  - LightInfluence 0 : le texte ne depend pas de la lumiere (lisible
+--    dans le sous-sol et la nuit) ;
+--  - un contour sombre autour des lettres, et une marge sur les bords.
+local function tailleFace(p, face)
+	local s = p.Size
+	if face == Enum.NormalId.Top or face == Enum.NormalId.Bottom then return s.X, s.Z end
+	if face == Enum.NormalId.Front or face == Enum.NormalId.Back then return s.X, s.Y end
+	return s.Z, s.Y
+end
 local function ecrire(p, face, texte, couleur, nom)
 	local g = Instance.new("SurfaceGui")
 	g.Face = face
-	g.PixelsPerStud = 25
+	g.LightInfluence = 0
+	local _, haut = tailleFace(p, face)
+	local lignes = select(2, texte:gsub("\n", "")) + 1
+	g.PixelsPerStud = math.clamp(125 * lignes / haut, 10, 200)
 	local t = Instance.new("TextLabel")
 	t.Name = nom or "Texte"
 	t.Size = UDim2.fromScale(1, 1)
@@ -122,6 +137,15 @@ local function ecrire(p, face, texte, couleur, nom)
 	t.TextScaled = true
 	t.TextColor3 = couleur
 	t.Text = texte
+	local marge = Instance.new("UIPadding")
+	marge.PaddingTop, marge.PaddingBottom = UDim.new(0.1, 0), UDim.new(0.1, 0)
+	marge.PaddingLeft, marge.PaddingRight = UDim.new(0.04, 0), UDim.new(0.04, 0)
+	marge.Parent = t
+	local contour = Instance.new("UIStroke")
+	contour.Thickness = 3
+	contour.Color = Color3.fromRGB(10, 10, 14)
+	contour.Transparency = 0.2
+	contour.Parent = t
 	t.Parent = g
 	g.Parent = p
 	return t
@@ -331,7 +355,7 @@ borne(base * CFrame.new(RAYON_DISQUE + 4, 0, -R_VITRINE + 6) * CFrame.Angles(0, 
 -- =========================================================
 local function fond(x, y, z) return base * CFrame.new(x, y, zFond - z) end
 local enseigne = piece("EnseigneGarage", Vector3.new(52, 10, 0.5), fond(0, 25, 0.35), NOIR)
-ecrire(enseigne, Enum.NormalId.Front, "🔧 GARAGE", NEON)
+ecrire(enseigne, Enum.NormalId.Front, "GARAGE", NEON)       -- (pas d emoji : sur un panneau, Roblox les affiche en carre)
 piece("NeonEnseigne", Vector3.new(54, 0.5, 0.6), fond(0, 19.75, 0.4), NEON, Enum.Material.Neon)
 piece("NeonEnseigne", Vector3.new(54, 0.5, 0.6), fond(0, 30.25, 0.4), NEON, Enum.Material.Neon)
 

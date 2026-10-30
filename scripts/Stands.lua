@@ -111,20 +111,72 @@ end
 local function pave(nom, d1, d2, x1, x2, y1, y2, couleur, matiere, parent)
 	return piece(nom, Vector3.new(x2 - x1, y2 - y1, d2 - d1), ici((d1 + d2) / 2, (x1 + x2) / 2, (y1 + y2) / 2), couleur, matiere, parent)
 end
-local function ecrire(p, face, texte, couleur, fond)
-	local g = Instance.new("SurfaceGui")
-	g.Face = face
-	g.PixelsPerStud = 20
-	local t = Instance.new("TextLabel")
-	t.Size = UDim2.fromScale(1, 1)
-	t.BackgroundTransparency = fond and 0 or 1
-	if fond then t.BackgroundColor3 = fond end
+-- un texte LISIBLE (2026-10-30) : comme dans Garage.lua, une ligne fait
+-- ~125 pixels (Roblox ne fait pas de lettres de plus de 100 pixels),
+-- LightInfluence 0 (lisible la nuit), un contour sombre et une marge.
+local function tailleFace(p, face)
+	local s = p.Size
+	if face == Enum.NormalId.Top or face == Enum.NormalId.Bottom then return s.X, s.Z end
+	if face == Enum.NormalId.Front or face == Enum.NormalId.Back then return s.X, s.Y end
+	return s.Z, s.Y
+end
+local function lettres(t, couleur)
+	t.BackgroundTransparency = 1
 	t.Font = Enum.Font.GothamBlack
 	t.TextScaled = true
 	t.TextColor3 = couleur
-	t.Text = texte
-	t.Parent = g
+	local marge = Instance.new("UIPadding")
+	marge.PaddingTop, marge.PaddingBottom = UDim.new(0.1, 0), UDim.new(0.1, 0)
+	marge.PaddingLeft, marge.PaddingRight = UDim.new(0.04, 0), UDim.new(0.04, 0)
+	marge.Parent = t
+	local contour = Instance.new("UIStroke")
+	contour.Thickness = 3
+	contour.Color = Color3.fromRGB(10, 10, 14)
+	contour.Transparency = 0.2
+	contour.Parent = t
+end
+local function surface(p, face)
+	local g = Instance.new("SurfaceGui")
+	g.Face = face
+	g.LightInfluence = 0
+	local _, haut = tailleFace(p, face)
+	g.PixelsPerStud = math.clamp(125 / haut, 10, 200)
 	g.Parent = p
+	return g
+end
+local function ecrire(p, face, texte, couleur)
+	local g = surface(p, face)
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(1, 1)
+	t.Text = texte
+	lettres(t, couleur)
+	t.Parent = g
+	return g
+end
+-- le BANDEAU d une ecurie : "ECURIE n" au milieu, et le numero dans une
+-- pastille blanche a chaque bout
+local function bandeauEcurie(p, face, n, couleur)
+	local g = surface(p, face)
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(0.64, 1)
+	t.Position = UDim2.fromScale(0.18, 0)
+	t.Text = "ÉCURIE " .. n
+	lettres(t, Color3.new(1, 1, 1))
+	t.Parent = g
+	for _, x in ipairs({0.02, 0.98}) do
+		local pastille = Instance.new("TextLabel")
+		pastille.AnchorPoint = Vector2.new(x, 0.5)
+		pastille.Position = UDim2.fromScale(x, 0.5)
+		pastille.Size = UDim2.fromScale(1, 0.8)
+		pastille.SizeConstraint = Enum.SizeConstraint.RelativeYY     -- un carre
+		pastille.BackgroundColor3 = Color3.new(1, 1, 1)
+		pastille.Font = Enum.Font.GothamBlack
+		pastille.TextScaled = true
+		pastille.TextColor3 = couleur
+		pastille.Text = tostring(n)
+		Instance.new("UICorner", pastille).CornerRadius = UDim.new(0.25, 0)
+		pastille.Parent = g
+	end
 	return g
 end
 -- une bande peinte au sol, de (d1, x1) a (d2, x2)
@@ -211,7 +263,7 @@ for n = 1, NB do
 	pave("FondGarage", d1, d2, xFondBox - 0.6, xFondBox, 0, H_BAS, BLANC, nil, box)
 	-- le bandeau au-dessus de l ouverture, a la couleur de l equipe
 	local bandeau = pave("Bandeau", d1, d2, xFacade - 0.5, xFacade, H_BAS - 2.6, H_BAS, couleur, nil, box)
-	ecrire(bandeau, Enum.NormalId.Left, "  " .. n .. "   ÉCURIE " .. n .. "  ", Color3.new(1, 1, 1))
+	bandeauEcurie(bandeau, Enum.NormalId.Left, n, couleur)
 	-- le rideau metallique, enroule en haut de l ouverture
 	local rideau = piece("Rideau", Vector3.new(LARG_BOX - 0.5, 1.3, 1.3), ici(dC, xFacade + 0.8, H_BAS - 3.3) * CFrame.Angles(0, math.rad(90), 0),
 		Color3.fromRGB(150, 152, 160), Enum.Material.Metal, box)
@@ -270,6 +322,7 @@ local dos = pave("DosStands", dA, dB, xDos - 0.5, xDos, -1, yToit + 1, BLANC)
 local deco = Instance.new("SurfaceGui")
 deco.Face = Enum.NormalId.Right            -- cote spawn
 deco.PixelsPerStud = 10
+deco.LightInfluence = 0
 for i, c in ipairs(EQUIPES) do
 	local bandeD = Instance.new("Frame")
 	bandeD.Size = UDim2.new(1 / (#EQUIPES * 2), 0, 1, 0)
@@ -286,8 +339,11 @@ titre.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
 titre.TextColor3 = Color3.new(1, 1, 1)
 titre.Font = Enum.Font.GothamBlack
 titre.TextScaled = true
-titre.Text = "🏁  STANDS  🏁"
+titre.Text = "STANDS"       -- (pas d emoji : sur un panneau, Roblox les affiche en carre)
 titre.Parent = deco
+local margeTitre = Instance.new("UIPadding")
+margeTitre.PaddingTop, margeTitre.PaddingBottom = UDim.new(0.12, 0), UDim.new(0.12, 0)
+margeTitre.Parent = titre
 Instance.new("UICorner", titre).CornerRadius = UDim.new(0.15, 0)
 deco.Parent = dos
 -- les deux bouts du batiment
