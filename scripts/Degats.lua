@@ -40,6 +40,9 @@ local ROUTE_SEUIL  = 15    -- la route n abime que si on la tape a plus de 15 st
 local PRES         = 4     -- piece touchee sans morceau : le morceau le plus proche, a moins de 4 studs
 local PROTEGE      = 1.5   -- secondes apres le depart : on ne compte rien
 local NOIRCI       = 0.6   -- a 0 PV, la couleur est a 60 % vers le noir
+-- LES EPINES (la Ronce : pieces avec l attribut "Epine")
+local EPINE_BONUS  = 2.5   -- toucher une epine abime 2.5 fois plus
+local EPINE_ARMURE = 0.3   -- une epine qui touche quelque chose s use 3 fois moins
 local SUIE   = Color3.fromRGB(30, 28, 26)
 local ORANGE = Color3.fromRGB(255, 150, 60)
 
@@ -164,6 +167,9 @@ local function detacher(voiture, m)
 			if nc:IsA("NoCollisionConstraint") then nc:Destroy() end
 		end
 		partie.Massless = false
+		-- (les decorations ajoutees, epines et branches, ne cognaient pas :
+		-- tombees, elles doivent rester SUR la piste, pas passer a travers)
+		if partie.Transparency < 1 then partie.CanCollide = true end
 		partie:SetAttribute("DeVoiture", voiture.Name)
 		partie:SetAttribute("TombeA", os.clock())
 	end
@@ -259,7 +265,14 @@ local function surContact(voiture, partie, autre)
 	end
 	local point = pointProche(partie, pointProche(autre, partie.Position))
 	local m = morceauDe(voiture, partie, point)
-	if m then abimer(voiture, m, PV_COUP + vitesse * PV_VITESSE, "contact " .. autre.Name) end
+	if not m then return end
+	local pv = PV_COUP + vitesse * PV_VITESSE
+	if autre:GetAttribute("Epine") then
+		pv *= EPINE_BONUS                -- on s est frotte aux epines (d une Ronce, ou tombees sur la piste)
+	elseif partie:GetAttribute("Epine") then
+		pv *= EPINE_ARMURE               -- NOS epines encaissent : elles protegent la voiture
+	end
+	abimer(voiture, m, pv, "contact " .. autre.Name)
 end
 
 local function brancher(voiture)

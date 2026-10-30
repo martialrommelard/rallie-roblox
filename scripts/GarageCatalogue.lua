@@ -39,6 +39,13 @@ Catalogue.VOITURES = {
 		texte = "Rapide et très maniable : elle colle à la route.",
 		Puissance = 1.12, VitesseMax = 1.1, Freinage = 1.1, Solidite = 0.9, Maniabilite = 1.3,
 		carrosserie = "VoitureFlash"},
+	-- (2026-10-30) la voiture de DEFENSE : noire, couverte d epines et de
+	-- branches (generateur VoitureRonce.lua). Qui la touche s abime 2.5 fois
+	-- plus (script Degats). Lourde a manier, mais tres solide.
+	{nom = "Ronce", prix = 300, couleur = Color3.fromRGB(26, 22, 30),
+		texte = "Couverte d'épines : qui la touche s'abîme. Lente, mais très solide.",
+		Puissance = 0.95, VitesseMax = 0.97, Freinage = 1.05, Solidite = 1.8, Maniabilite = 0.95,
+		carrosserie = "VoitureRonce"},
 }
 
 -- LES AMELIORATIONS : 3 niveaux chacune, pour TOUTES tes voitures.
