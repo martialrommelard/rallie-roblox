@@ -35,7 +35,7 @@ Catalogue.VOITURES = {
 	-- (2026-10-30) une AUTRE CARROSSERIE : la voiture de course rouge aux
 	-- grands yeux (generateur VoitureFlash.lua). Tres maniable : elle tourne
 	-- plus vite et colle mieux a la route (Maniabilite, lue par PiloteRally).
-	{nom = "Flash", prix = 100, couleur = Color3.fromRGB(205, 20, 28),
+	{nom = "Flash", prix = 500, couleur = Color3.fromRGB(205, 20, 28),
 		texte = "Rapide et très maniable : elle colle à la route.",
 		Puissance = 1.12, VitesseMax = 1.1, Freinage = 1.1, Solidite = 0.9, Maniabilite = 1.3,
 		carrosserie = "VoitureFlash"},
