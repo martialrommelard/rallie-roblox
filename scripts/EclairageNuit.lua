@@ -133,6 +133,23 @@ local function lampePlafond(i, plafond)
 	lumiere("PointLight", tete, JAUNE, 45, 3)
 end
 
+-- ---- LE SAUT : pas de reverbere juste apres le tremplin ----
+-- Le premier reverbere apres le tremplin tombait a la reception du saut
+-- (morceau Route148, a 104 studs) : son bras passait au-dessus de la
+-- route, sur la trajectoire des voitures. On le saute (demande du
+-- 2026-10-30). On DEMANDE au tremplin ou il est : le morceau de route
+-- le plus proche de lui.
+local iTremplin = nil
+local tremplin = circuit:FindFirstChild("Tremplin")
+if tremplin then
+	local dMin = math.huge
+	for i, p in ipairs(morceaux) do
+		local d = (p.Position - tremplin.Position).Magnitude
+		if d < dMin then iTremplin, dMin = i, d end
+	end
+end
+local sauterLeProchain = iTremplin ~= nil
+
 -- ---- on parcourt la route ----
 local nbReverberes, nbPlafond = 0, 0
 for i = 1, NB do
@@ -144,6 +161,8 @@ for i = 1, NB do
 			lampePlafond(i, dessus.Position)
 			nbPlafond += 1
 		end
+	elseif i % ECART_LAMPE == 0 and sauterLeProchain and i > iTremplin then
+		sauterLeProchain = false          -- celui-la, on ne le construit pas
 	elseif i % ECART_LAMPE == 0 then
 		local avant = #tetes
 		reverbere(i)
