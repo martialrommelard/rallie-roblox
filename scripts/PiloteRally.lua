@@ -114,6 +114,8 @@ function Pilote.piloter(voiture, gaz, volant, dt, aides)
 	local vmax = math.min(vmaxVoiture, voiture:GetAttribute("Limiteur") or math.huge)
 	local couple = COUPLE * (voiture:GetAttribute("Puissance") or 1)
 	local frein = FREIN * (voiture:GetAttribute("Freinage") or 1)
+	-- la MANIABILITE (la Flash : 1.3) : elle tourne plus vite et glisse moins
+	local mania = voiture:GetAttribute("Maniabilite") or 1
 
 	-- ---- LES ROUES ----
 	local cible, force
@@ -150,13 +152,13 @@ function Pilote.piloter(voiture, gaz, volant, dt, aides)
 	-- 2. L ADHERENCE : on enleve une partie de la vitesse de cote
 	local cote = ch.CFrame.RightVector
 	local glisse = cote:Dot(ch.AssemblyLinearVelocity)
-	local dVitesse = -cote * glisse * math.min(1, ADHERENCE * dt)
+	local dVitesse = -cote * glisse * math.min(1, ADHERENCE * mania * dt)
 
 	-- 3. L AIDE AU VIRAGE : la rotation voulue (vers la droite = negative
 	-- autour de l axe vertical), plus douce a l arret (on ne tourne pas
 	-- sur place) et a pleine vitesse
 	local aPeine = math.clamp(math.abs(v) / 15, 0, 1)            -- 0 a l arret, 1 des 15 studs/s
-	local voulue = -volant * (VIRAGE + (VIRAGE_VITE - VIRAGE) * f) * aPeine * ((v >= 0) and 1 or -1)
+	local voulue = -volant * (VIRAGE + (VIRAGE_VITE - VIRAGE) * f) * mania * aPeine * ((v >= 0) and 1 or -1)
 	local haut = ch.CFrame.UpVector
 	local actuelle = haut:Dot(ch.AssemblyAngularVelocity)
 	local dRotation = haut * (voulue - actuelle) * math.min(1, AIDE_VIRAGE * dt)

@@ -191,7 +191,8 @@ function AFFICHAGE.VOITURES()
 		texte(c, v.nom, UDim2.new(1, -170, 0, 22), UDim2.fromOffset(38, 9), 18, BLANC, true)
 		texte(c, v.texte, UDim2.new(1, -170, 0, 34), UDim2.fromOffset(12, 34), 13, Color3.fromRGB(200, 205, 215))
 		texte(c, "Moteur " .. enX(v.Puissance) .. "  Vitesse " .. enX(v.VitesseMax)
-			.. "  Freins " .. enX(v.Freinage) .. "  Solidité " .. enX(v.Solidite),
+			.. "  Freins " .. enX(v.Freinage) .. "  Solidité " .. enX(v.Solidite)
+			.. (v.Maniabilite and ("  Maniabilité " .. enX(v.Maniabilite)) or ""),
 			UDim2.new(1, -24, 0, 16), UDim2.fromOffset(12, 78), 12, JAUNE)
 
 		local action, libelle, couleur

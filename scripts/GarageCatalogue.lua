@@ -6,9 +6,9 @@
 --  l ECRAN (Garage.client : ce qu on affiche). Une seule liste pour les
 --  deux : changer un prix ici le change partout.
 --
---  Toutes les voitures ont la MEME carrosserie (NOTRE voiture de rally,
---  generateur VoitureRally.lua) : ce qui change, c est la peinture et les
---  reglages. Les chiffres sont des MULTIPLICATEURS (1 = la voiture de
+--  Les voitures ont NOTRE carrosserie de rally (generateur VoitureRally.lua),
+--  sauf celles qui en precisent une autre ("carrosserie", ex. la Flash) :
+--  ce qui change, c est la peinture et les reglages. Les chiffres sont des MULTIPLICATEURS (1 = la voiture de
 --  base). Le module PiloteRally les lit (Puissance, VitesseMax,
 --  Freinage) ; le script Degats lit Solidite.
 --  (La 1re s appelle encore "Jesko" : c est son nom dans les sauvegardes.)
@@ -32,6 +32,13 @@ Catalogue.VOITURES = {
 	{nom = "Panthère", prix = 120, couleur = Color3.fromRGB(35, 35, 40),
 		texte = "La meilleure partout. Il faut la mériter !",
 		Puissance = 1.15, VitesseMax = 1.08, Freinage = 1.2, Solidite = 1.2},
+	-- (2026-10-30) une AUTRE CARROSSERIE : la voiture de course rouge aux
+	-- grands yeux (generateur VoitureFlash.lua). Tres maniable : elle tourne
+	-- plus vite et colle mieux a la route (Maniabilite, lue par PiloteRally).
+	{nom = "Flash", prix = 100, couleur = Color3.fromRGB(205, 20, 28),
+		texte = "Rapide et très maniable : elle colle à la route.",
+		Puissance = 1.12, VitesseMax = 1.1, Freinage = 1.1, Solidite = 0.9, Maniabilite = 1.3,
+		carrosserie = "VoitureFlash"},
 }
 
 -- LES AMELIORATIONS : 3 niveaux chacune, pour TOUTES tes voitures.
@@ -96,7 +103,15 @@ function Catalogue.reglages(nomVoiture, niveaux)
 	for _, a in ipairs(Catalogue.AMELIORATIONS) do
 		r[a.cle] = v[a.cle] + a.effet * (niveaux[a.cle] or 0)
 	end
+	r.Maniabilite = v.Maniabilite or 1     -- (pas d amelioration pour elle)
 	return r
+end
+
+-- Le nom de la CARROSSERIE (le modele dans ServerStorage) d une voiture.
+-- Sans rien de precise : notre voiture de rally.
+function Catalogue.carrosserie(nomVoiture)
+	local v = Catalogue.voiture(nomVoiture) or Catalogue.VOITURES[1]
+	return v.carrosserie or "VoitureModele"
 end
 
 -- La couleur FINALE : la peinture choisie, sinon celle du modele.

@@ -43,9 +43,43 @@ end
 -- s asseoir : le module PiloteRally les lit en roulant, le script
 -- Degats lit Solidite. Et on la repeint de SA couleur.
 local Catalogue = require(ReplicatedStorage:WaitForChild("GarageCatalogue"))
-local REGLAGES = {"Puissance", "VitesseMax", "Freinage", "Solidite"}
+local ServerStorage = game:GetService("ServerStorage")
+local REGLAGES = {"Puissance", "VitesseMax", "Freinage", "Solidite", "Maniabilite"}
+
+-- SA CARROSSERIE : sur la grille, toutes les voitures sont celles de
+-- rally. Si sa voiture en a une autre (la Flash), on la SORT de
+-- ServerStorage et on la met a la place exacte de celle de la grille
+-- (meme nom, meme place, meme numero). Rend la voiture a utiliser.
+local function carrosser(voiture, joueur)
+	local voulue = Catalogue.carrosserie(joueur:GetAttribute("G_Voiture") or "Jesko")
+	if (voiture:GetAttribute("Carrosserie") or "VoitureModele") == voulue then return voiture end
+	local modele = ServerStorage:FindFirstChild(voulue)
+	if not modele then
+		warn("DepartCourse : pas de carrosserie " .. voulue .. " dans ServerStorage (lancer son generateur)")
+		return voiture
+	end
+	local numero = nil
+	for _, t in ipairs(voiture:GetDescendants()) do
+		if t:IsA("TextLabel") and t.Name == "Numero" and not t.Text:find("RALLYE") then numero = t.Text end
+	end
+	local neuve = modele:Clone()
+	neuve.Name = voiture.Name
+	neuve:SetAttribute("Place", voiture:GetAttribute("Place"))
+	for _, t in ipairs(neuve:GetDescendants()) do
+		if t:IsA("TextLabel") and t.Name == "Numero" and numero then
+			t.Text = (t.Text:find("RALLYE") and "RALLYE " or "") .. numero
+		end
+	end
+	-- (le pivot des deux voitures est le meme : leur siege, au meme endroit)
+	local ou = voiture:GetPivot()
+	voiture:Destroy()
+	neuve.Parent = voitures
+	neuve:PivotTo(ou)
+	return neuve
+end
 
 local function equiper(voiture, joueur)
+	voiture = carrosser(voiture, joueur)
 	for _, cle in ipairs(REGLAGES) do
 		voiture:SetAttribute(cle, joueur:GetAttribute("G_" .. cle) or 1)
 	end
@@ -65,6 +99,7 @@ local function equiper(voiture, joueur)
 			partie:Destroy()
 		end
 	end
+	return voiture
 end
 
 local choix = {}         -- choix[joueur] = nom de sa place ("Place3"...)
@@ -161,9 +196,10 @@ local function lancer()
 			local v = voitureDe(nomPlace)
 			local perso = joueur.Character
 			local humanoide = perso and perso:FindFirstChildOfClass("Humanoid")
-			local siege = v and v:FindFirstChildWhichIsA("VehicleSeat", true)
-			if not (humanoide and siege) then return end
-			equiper(v, joueur)
+			if not (humanoide and v) then return end
+			v = equiper(v, joueur)          -- (elle a pu changer de carrosserie)
+			local siege = v:FindFirstChildWhichIsA("VehicleSeat", true)
+			if not siege then return end
 			-- on pose le joueur au-dessus de son siege, et on l assoit.
 			-- Plusieurs essais : le tout premier peut rater le temps que le
 			-- personnage arrive (il vient de loin).

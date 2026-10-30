@@ -255,9 +255,10 @@ local ROUGE = Color3.fromRGB(255, 80, 80)
 local enReparation = {}    -- [joueur] = vrai pendant qu une de ses voitures est sur un pont
 
 -- Une copie FIGEE de la voiture (comme la vitrine) : sans scripts, ancree,
--- on ne peut ni s y asseoir ni la pousser.
-local function voitureFigee()
-	local v = ServerStorage:WaitForChild("VoitureModele"):Clone()
+-- on ne peut ni s y asseoir ni la pousser. (Avec SA carrosserie : la
+-- Flash monte sur le pont avec ses yeux.)
+local function voitureFigee(nom)
+	local v = ServerStorage:WaitForChild(Catalogue.carrosserie(nom)):Clone()
 	for _, x in ipairs(v:GetDescendants()) do
 		if x:IsA("LuaSourceContainer") or x:IsA("RemoteEvent") or x:IsA("Sound") or x:IsA("Constraint") then
 			x:Destroy()
@@ -341,7 +342,7 @@ local function reparer(poste, joueur)
 
 	-- 1. la voiture arrive sur le socle, a SA couleur, SANS ses pieces perdues
 	local socle = poste.Socle
-	local voiture = voitureFigee()
+	local voiture = voitureFigee(nom)
 	voiture.Name = "VoitureEnReparation"
 	Catalogue.peindre(voiture, Catalogue.couleur(nom, d.couleur))
 	local manquantes = Catalogue.partiesDe(voiture, x.perdues)

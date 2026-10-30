@@ -82,9 +82,9 @@ local voitures = Catalogue.VOITURES
 local nb1 = math.ceil(#voitures / #seuils)
 
 -- une voiture POUR DE FAUX : la voiture de rally, sans scripts, ancree
-local modele = ServerStorage:WaitForChild("VoitureModele")
+-- (avec SA carrosserie : la Flash est exposee avec ses yeux et ses eclairs)
 local function voitureExpo(info)
-	local v = modele:Clone()
+	local v = ServerStorage:WaitForChild(Catalogue.carrosserie(info.nom)):Clone()
 	v.Name = "Expo" .. info.nom
 	for _, d in ipairs(v:GetDescendants()) do
 		if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("Constraint") or d:IsA("VehicleSeat") or d:IsA("Seat") then

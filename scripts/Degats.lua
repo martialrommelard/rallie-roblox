@@ -316,11 +316,12 @@ if not reparationStand then
 end
 
 -- REMETTRE un morceau tombe : on prend le meme morceau dans la voiture
--- de reference (ServerStorage.VoitureModele), on le copie, et on le pose
+-- de reference (ServerStorage.VoitureModele, ou SA carrosserie : la
+-- Flash a des yeux et des eclairs), on le copie, et on le pose
 -- au MEME endroit par rapport au chassis. Puis on le soude (une roue :
 -- on lui refait sa charniere moteur sur sa fusee).
 local function remettre(voiture, nom)
-	local modele = ServerStorage:FindFirstChild("VoitureModele")
+	local modele = ServerStorage:FindFirstChild(voiture:GetAttribute("Carrosserie") or "VoitureModele")
 	local chM, chV = modele and modele:FindFirstChild("Chassis"), voiture:FindFirstChild("Chassis")
 	if not (chM and chV) then return false end
 	local couleur = voiture:FindFirstChild("Caisse") and voiture.Caisse.Color
