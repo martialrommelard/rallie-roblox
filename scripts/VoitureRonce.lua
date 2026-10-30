@@ -95,12 +95,12 @@ local function epine(pied, direction, longueur, morceau)
 	-- (un "haut" pas parallele a la direction, pour lookAt)
 	local haut = (math.abs(direction.Unit.Y) > 0.9) and Vector3.new(1, 0, 0) or Vector3.new(0, 1, 0)
 	local cf = CFrame.lookAt(centre, centre + direction, haut)
-	local large = math.max(0.5, longueur * 0.42)
+	local large = math.max(0.2, longueur * 0.42)
 	for k = 1, 2 do
 		local morceauCf = (k == 1) and (cf * CFrame.new(0, large / 4, 0))
 			or (cf * CFrame.new(0, -large / 4, 0) * CFrame.Angles(0, 0, math.pi))
 		-- (le coin a son bout fin a -Z, sur sa face du dessous : la pointe)
-		local c = ajout("Epine", "WedgePart", Vector3.new(0.35, large / 2, longueur), morceauCf,
+		local c = ajout("Epine", "WedgePart", Vector3.new(math.min(0.35, longueur * 0.3), large / 2, longueur), morceauCf,
 			EPINE, Enum.Material.Metal, morceau)
 		c.CanTouch = true                -- c est elle qui "pique" (script Degats)
 		c:SetAttribute("Epine", true)
@@ -208,5 +208,71 @@ if capot then
 	branche(Vector3.new(0.9, y, (zM + z2) / 2), Vector3.new(2.5, y, zM), 0.16, haut, m)
 end
 
+-- =========================================================
+-- 5. LES BRANCHES D ARBRE QUI DEPASSENT (demande du 2026-10-30)
+-- De vraies branches en 3D qui sortent de la carrosserie (ailes, toit),
+-- tordues, qui se divisent en rameaux, avec des petites epines. Une
+-- branche = des troncons (cylindres) mis bout a bout, avec une boule a
+-- chaque coude ; chaque troncon est plus fin et un peu devie. Le hasard
+-- a une GRAINE fixe : on obtient toujours la meme voiture.
+-- =========================================================
+local ECORCE = Color3.fromRGB(58, 40, 34)
+local nbTroncons = 0
+local hasard = Random.new(2026)
+local function troncon(a, b, ep, morceau)
+	local cf = CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0)   -- (un cylindre est couche le long de X)
+	local t = ajout("BrancheArbre", "Part", Vector3.new((b - a).Magnitude + ep * 0.4, ep, ep), cf, ECORCE, Enum.Material.Wood, morceau)
+	t.Shape = Enum.PartType.Cylinder
+	t.CanTouch = false
+	local coude = ajout("BrancheArbre", "Part", Vector3.new(ep, ep, ep), CFrame.new(b), ECORCE, Enum.Material.Wood, morceau)
+	coude.Shape = Enum.PartType.Ball
+	coude.CanTouch = false
+	nbTroncons += 1
+end
+-- une direction un peu devie (au hasard, mais plutot vers le haut)
+local function devier(d, force)
+	return (d.Unit + Vector3.new(hasard:NextNumber(-force, force), hasard:NextNumber(-force * 0.3, force), hasard:NextNumber(-force, force))).Unit
+end
+local function rameau(p, d, longueur, ep, niveau, morceau)
+	local q = p + d.Unit * longueur
+	troncon(p, q, ep, morceau)
+	-- une petite epine sur le cote du troncon, une fois sur deux
+	if hasard:NextNumber() < 0.5 then
+		local cote = d:Cross(Vector3.new(0, 1, 0))
+		if cote.Magnitude < 0.1 then cote = Vector3.new(1, 0, 0) end
+		cote = cote.Unit * ((hasard:NextNumber() < 0.5) and 1 or -1)
+		epine((p + q) / 2, cote + d * 0.6, math.max(0.35, ep * 2.2), morceau)
+	end
+	if niveau <= 0 then
+		epine(q, d, math.max(0.4, ep * 2.5), morceau)        -- le bout du rameau : pointu
+		return
+	end
+	rameau(q, devier(d, 0.45), longueur * 0.8, ep * 0.72, niveau - 1, morceau)
+	-- et une fourche (toujours pres du pied, parfois plus loin)
+	if niveau >= 2 or hasard:NextNumber() < 0.45 then
+		rameau(q, devier(d, 1.1), longueur * 0.6, ep * 0.62, niveau - 2, morceau)
+	end
+end
+-- ou elles poussent : (piece, point de depart dans le repere du chassis,
+-- direction, longueur du 1er troncon, epaisseur, nombre de troncons)
+for _, sx in ipairs({-1, 1}) do
+	local s = (sx < 0) and "G" or "D"
+	local cfA, aileAr = lp("AileAr" .. s)
+	if aileAr then        -- la grosse : de l aile arriere, vers l arriere et le haut
+		local depart = cfA.Position + Vector3.new(sx * 0.1, aileAr.Size.Y / 2, 0.6)
+		rameau(ici(depart.X, depart.Y, depart.Z).Position, chassis.CFrame:VectorToWorldSpace(Vector3.new(sx * 0.55, 0.75, 0.55)), 1.4, 0.38, 3, aileAr:GetAttribute("Morceau"))
+	end
+	local cfV, aileAv = lp("AileAv" .. s)
+	if aileAv then        -- une plus petite : de l aile avant, vers l exterieur
+		local depart = cfV.Position + Vector3.new(sx * 0.1, aileAv.Size.Y / 2, 0.3)
+		rameau(ici(depart.X, depart.Y, depart.Z).Position, chassis.CFrame:VectorToWorldSpace(Vector3.new(sx * 0.8, 0.55, 0.15)), 1.0, 0.28, 2, aileAv:GetAttribute("Morceau"))
+	end
+	if toit then          -- des coins arriere du toit, vers le haut
+		local depart = cfToit.Position + Vector3.new(sx * (toit.Size.X / 2 - 0.4), toit.Size.Y / 2, toit.Size.Z / 2 - 0.4)
+		rameau(ici(depart.X, depart.Y, depart.Z).Position, chassis.CFrame:VectorToWorldSpace(Vector3.new(sx * 0.35, 1, 0.45)), 1.2, 0.32, 3, nil)
+	end
+end
+
 v.Parent = ServerStorage
-print(string.format("Ronce : %d epines, %d branches (ServerStorage.%s)", nbEpines, nbBranches, NOM))
+print(string.format("Ronce : %d epines, %d branches plaquees, %d troncons de branches d arbre (ServerStorage.%s)",
+	nbEpines, nbBranches, nbTroncons, NOM))
