@@ -26,15 +26,20 @@ local Debris            = game:GetService("Debris")
 -- ---- LES REGLAGES ----
 -- le verglas
 local VITESSE_GLACE = 20     -- elle ne laisse de glace qu au-dessus de 20 studs/s
-local ECART_GLACE   = 0.35   -- une plaque toutes les 0.35 s
-local RAYON_GLACE   = 3.5    -- le rayon d une plaque
+local COTE_GLACE    = 14     -- une plaque CARREE de 14 studs de cote (avant : un rond de 7)...
+local ECART_GLACE   = 12     -- ...posee tous les 12 studs parcourus : une piste de glace continue
 local VIE_GLACE     = 8      -- secondes avant qu elle fonde
 local DUREE_GLISSE  = 1.2    -- on glisse encore 1.2 s apres etre passe dessus
 -- le feu
 local DUREE_FEU     = 1.5    -- secondes de flamme
 local RECHARGE      = 8      -- secondes entre deux jets de feu
-local PORTEE_FEU    = 30     -- la flamme va jusqu a 30 studs...
-local ANGLE_FEU     = 22     -- ...dans un cone de 22 degres
+local PORTEE_FEU    = 55     -- la flamme va jusqu a 55 studs (avant : 30)...
+local ANGLE_FEU     = 18     -- ...dans un cone de 18 degres
+-- la flamme elle-meme (le ParticleEmitter "Feu" de la gueule) : on la
+-- regle ICI, au lancement, pour que la portee qu on voit = celle qui brule
+local VITESSE_FLAMME = NumberRange.new(60, 75)                     -- studs/s
+local VIE_FLAMME     = NumberRange.new(0.7, 0.85)                  -- 70 x 0.78 = ~55 studs
+local TAILLE_FLAMME  = NumberSequence.new({NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(0.5, 7), NumberSequenceKeypoint.new(1, 11)})
 local PV_FEU        = 5      -- PV perdus a chaque brulure...
 local CADENCE_FEU   = 0.35   -- ...toutes les 0.35 s (le script Degats ne compte pas plus vite)
 
@@ -77,8 +82,8 @@ end
 -- =========================================================
 local rayon = RaycastParams.new()
 rayon.FilterType = Enum.RaycastFilterType.Exclude
-local plaques = {}          -- {position, de (la voiture qui l a posee), fin}
-local derniere = {}         -- [voiture] = l heure de sa derniere plaque
+local plaques = {}          -- {cf (le centre et le sens du carre), de (la voiture qui l a posee), fin}
+local derniere = {}         -- [voiture] = l endroit de sa derniere plaque
 local glisse = {}           -- [voiture] = l heure ou elle arrete de glisser
 
 local function poserGlace(voiture, chassis)
@@ -90,15 +95,15 @@ local function poserGlace(voiture, chassis)
 	end
 	rayon.FilterDescendantsInstances = ignores
 	local sol = workspace:Raycast(arriere + Vector3.new(0, 3, 0), Vector3.new(0, -12, 0), rayon)
-	if not sol then return end                     -- en plein saut : rien
+	if not sol then return false end               -- en plein saut : rien
 	local p = Instance.new("Part")
 	p.Name = "Verglas"
-	p.Shape = Enum.PartType.Cylinder
-	p.Size = Vector3.new(0.15, RAYON_GLACE * 2, RAYON_GLACE * 2)
-	-- un disque a plat, colle au sol (le cylindre est couche le long de X :
-	-- on met son X dans le sens de la normale du sol)
-	p.CFrame = CFrame.fromMatrix(sol.Position + sol.Normal * 0.08, sol.Normal, sol.Normal:Cross(Vector3.new(0, 0, 1)).Magnitude > 0.1
-		and sol.Normal:Cross(Vector3.new(0, 0, 1)).Unit or Vector3.new(0, 1, 0))
+	p.Size = Vector3.new(COTE_GLACE, 0.15, COTE_GLACE)
+	-- un CARRE a plat, colle au sol, dans le sens de la voiture
+	-- (son "haut" = la normale du sol : il suit les pentes)
+	local avant = chassis.CFrame.LookVector
+	local cote = avant:Cross(sol.Normal).Unit
+	p.CFrame = CFrame.fromMatrix(sol.Position + sol.Normal * 0.08, cote, sol.Normal)
 	p.Color = GLACE
 	p.Material = Enum.Material.Ice
 	p.Transparency = 0.3
@@ -107,7 +112,8 @@ local function poserGlace(voiture, chassis)
 	p.CastShadow = false
 	p.Parent = dossier
 	Debris:AddItem(p, VIE_GLACE)
-	table.insert(plaques, {position = sol.Position, de = voiture, fin = os.clock() + VIE_GLACE})
+	table.insert(plaques, {cf = p.CFrame, de = voiture, fin = os.clock() + VIE_GLACE})
+	return true
 end
 
 local prochain = 0
@@ -126,17 +132,17 @@ RunService.Heartbeat:Connect(function()
 		local chassis = voiture:FindFirstChild("Chassis")
 		if chassis then
 			-- la Givre pose sa glace
+			-- (une plaque tous les ECART_GLACE studs parcourus : elles se touchent)
 			if voiture:GetAttribute("Pouvoir") == "Verglas" and enCourse() and piloteDe(voiture)
 				and chassis.AssemblyLinearVelocity.Magnitude > VITESSE_GLACE
-				and maintenant - (derniere[voiture] or 0) > ECART_GLACE then
-				derniere[voiture] = maintenant
-				poserGlace(voiture, chassis)
+				and (not derniere[voiture] or (chassis.Position - derniere[voiture]).Magnitude > ECART_GLACE) then
+				if poserGlace(voiture, chassis) then derniere[voiture] = chassis.Position end
 			end
-			-- les autres glissent dessus
+			-- les autres glissent dessus (le centre de la voiture DANS le carre)
 			if voiture:GetAttribute("Pouvoir") ~= "Verglas" then
 				for _, pl in ipairs(plaques) do
-					local d = chassis.Position - pl.position
-					if math.abs(d.Y) < 5 and Vector2.new(d.X, d.Z).Magnitude < RAYON_GLACE + 1 then
+					local l = pl.cf:PointToObjectSpace(chassis.Position)
+					if math.abs(l.X) < COTE_GLACE / 2 + 1 and math.abs(l.Z) < COTE_GLACE / 2 + 1 and math.abs(l.Y) < 5 then
 						if not glisse[voiture] then
 							local j = piloteDe(voiture)
 							if j then info:FireClient(j, "❄️ Verglas ! Tu glisses...", GLACE, 1.5) end
@@ -163,6 +169,9 @@ local function cracher(voiture, joueur)
 	local feu = gueule and gueule:FindFirstChild("Feu")
 	if not feu then return end
 	voiture:SetAttribute("Recharge", workspace:GetServerTimeNow() + RECHARGE)   -- (l ecran du pilote affiche l attente)
+	feu.Speed, feu.Lifetime, feu.Size = VITESSE_FLAMME, VIE_FLAMME, TAILLE_FLAMME
+	feu.Rate = 200
+	feu.SpreadAngle = Vector2.new(8, 8)
 	feu.Enabled = true
 	if gueule:FindFirstChild("Lueur") then gueule.Lueur.Enabled = true end
 	local prevenus = {}
