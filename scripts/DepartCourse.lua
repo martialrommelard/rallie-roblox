@@ -70,12 +70,6 @@ local function equiper(voiture, joueur)
 	end
 end
 
--- Une voiture DETRUITE (0 %) ne peut pas courir : il faut la reparer.
-local function detruite(joueur)
-	return (joueur:GetAttribute("G_Etat") or 100) <= 0
-end
-local MESSAGE_DETRUITE = "Ta voiture est détruite ! Répare-la au garage (sous le spawn) 🔧"
-
 local choix = {}         -- choix[joueur] = nom de sa place ("Place3"...)
 local ouverts = {}       -- ouverts[joueur] = true si son ecran de choix est ouvert
 local finAttente = nil   -- l heure (os.clock) du depart automatique
@@ -202,10 +196,6 @@ end
 -- generateur (nouveau bouton), ce script n a rien a refaire.
 ProximityPromptService.PromptTriggered:Connect(function(prompt, joueur)
 	if prompt.Name ~= "PromptCourse" then return end
-	if detruite(joueur) then
-		evt:FireClient(joueur, "message", MESSAGE_DETRUITE)
-		return
-	end
 	local ok, raison = coursePossible()
 	if not ok then
 		evt:FireClient(joueur, "message", raison)
@@ -218,7 +208,7 @@ end)
 -- ---- CE QUE LES ECRANS NOUS ENVOIENT ----
 evt.OnServerEvent:Connect(function(joueur, action, nomPlace)
 	if action == "choisir" and type(nomPlace) == "string" then
-		if not coursePossible() or detruite(joueur) then return end
+		if not coursePossible() then return end
 		-- la place existe ?
 		local existe = false
 		for _, p in ipairs(places()) do

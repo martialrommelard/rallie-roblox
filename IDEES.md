@@ -46,8 +46,8 @@ On coche une case quand l'idée est faite. **On avance dans l'ordre des priorit�
 
 - [x] **La voiture s'abîme pendant la course** en cas de choc. *(2026-10-30 :
   chaque MORCEAU s'use à part (seul celui touché), noircit, puis se détache
-  et reste sur la piste comme obstacle ; barre d'état, fumée, feu, éliminé à
-  0 %. Les dégâts restent après la course : on répare aux 4 postes du garage.)*
+  et reste sur la piste comme obstacle. La voiture, elle, n'est JAMAIS
+  détruite. Les dégâts restent après la course : on répare aux 4 postes du garage.)*
 - [ ] **Piste secondaire qui passe par les garages** (comme un arrêt au stand) :
   on y répare la voiture et on prend un boost, mais on perd quelques secondes.
   *(Va avec les dégâts — pas encore faite.)*

@@ -17,7 +17,8 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 - **ABANDONNER** (bouton en bas à droite, 2 clics) ; abandon **automatique** si
   on reste 8 s hors de sa voiture ; course limitée à **10 min**, et **90 s**
   pour les autres quand le 1er est arrivé.
-- **Dégâts** : barre « Voiture : xx % » en bas à gauche, fumée, feu, éliminé à 0.
+- **Dégâts** : barre « Voiture : xx % » en bas à gauche, fumée, feu. La voiture
+  n'est **jamais détruite** : seuls ses morceaux cassent.
 - Bugs corrigés : « Se lever » des bureaux, erreur A-Chassis (faute de frappe
   `FAntiRoll`/`RAntiRoll`), son des pneus bloqué, script son qui plantait.
 - Tout est testé en Play (checkpoints, coupe, abandon, choc, garage).
@@ -26,10 +27,10 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 spawn** (on y descend par les escaliers derrière le spawn). Il **suit le
 rond** (cercle mesuré : rayon 74,5) : sol en demi-rond, vitrine au centre,
 bornes « Ouvrir le garage », et **4 postes de réparation** le long du mur.
-- **Dégâts par morceau** : seul le morceau touché s'use et noircit ; à 0 il
-  se détache et **reste sur la piste** (obstacle qui abîme les autres).
-- Les dégâts **restent** d'une course à l'autre ; voiture à 0 % = pas de
-  course avant réparation. Au poste : le pont monte, étincelles, les
+- **Dégâts par morceau** : seul le morceau qui touche un objet (ou qui tape
+  fort la route) s'use et noircit ; à 0 il se détache et **reste sur la
+  piste** (obstacle qui abîme les autres). La voiture n'est jamais détruite.
+- Les dégâts **restent** d'une course à l'autre. Au poste : le pont monte, étincelles, les
   morceaux reviennent un par un. Prix : 1 🪙 par 10 % + 2 par morceau.
 - **5 voitures** : Jesko (gratuite), Éclair 40 🪙, Comète 60, Bélier 60,
   Panthère 120 — même carrosserie, réglages différents ;
