@@ -239,17 +239,20 @@ for n = 1, NB do
 	end
 	box.Parent = ecuries
 
-	-- LA ZONE D ARRET : un cadre jaune et le numero peints sur la voie de
-	-- travail. La piece "ZoneArret" (invisible) couvre la zone ET le garage :
-	-- StandsServeur regarde si la voiture est dedans.
-	local z1, z2 = d1 + 1, d2 - 1
-	peinture("CadreArret", z1, xVoie2 + 0.6, z2, xVoie2 + 0.6, 0.4, JAUNE)
-	peinture("CadreArret", z1, xVoie2 + 0.6, z1, xFacade - 0.3, 0.4, JAUNE)
-	peinture("CadreArret", z2, xVoie2 + 0.6, z2, xFacade - 0.3, 0.4, JAUNE)
-	local num = piece("NumeroSol", Vector3.new(6, 0.05, 6), ici(dC, (xVoie2 + xFacade) / 2, 0.03), ASPHALTE, nil, stands)
+	-- LA ZONE D ARRET (agrandie le 2026-10-30) : toute la LARGEUR DE LA
+	-- VOIE (voie rapide comprise), toute la largeur du garage (jusqu au
+	-- milieu des piliers : les zones se touchent), et le garage jusqu au
+	-- fond. Un grand cadre jaune et le numero sont peints sur la voie. La
+	-- piece "ZoneArret" (invisible) : StandsServeur regarde si la voiture
+	-- est dedans.
+	local z1, z2 = d1 - PILIER / 2, d2 + PILIER / 2
+	peinture("CadreArret", d1 + 0.3, xVoie1 + 0.9, d2 - 0.3, xVoie1 + 0.9, 0.5, JAUNE)
+	peinture("CadreArret", d1 + 0.3, xVoie1 + 0.9, d1 + 0.3, xFacade - 0.3, 0.5, JAUNE)
+	peinture("CadreArret", d2 - 0.3, xVoie1 + 0.9, d2 - 0.3, xFacade - 0.3, 0.5, JAUNE)
+	local num = piece("NumeroSol", Vector3.new(10, 0.05, 10), ici(dC, xMilieuVoie, 0.03), ASPHALTE, nil, stands)
 	num.CanCollide, num.Transparency = false, 1
 	ecrire(num, Enum.NormalId.Top, tostring(n), couleur)
-	local zone = pave("ZoneArret", z1, z2, xVoie2, xFondBox - 1, 0, 8, couleur, nil, stands)
+	local zone = pave("ZoneArret", z1, z2, xVoie1, xFondBox - 0.6, 0, 12, couleur, nil, stands)
 	zone.Transparency = 1
 	zone.CanCollide, zone.CanQuery, zone.CanTouch = false, false, false
 	zone:SetAttribute("Numero", n)

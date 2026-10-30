@@ -17,7 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage     = game:GetService("ServerStorage")
 
 local LIMITEUR = 40     -- studs/s dans la voie des stands
-local ARRET    = 3      -- en dessous de 3 studs/s, on est arrete
+local ARRET    = 5      -- en dessous de 5 studs/s, on est arrete (avant : 3, trop dur)
 local CADENCE  = 1      -- une etape de reparation par seconde
 
 local JAUNE = Color3.fromRGB(255, 205, 60)
