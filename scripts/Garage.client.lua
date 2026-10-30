@@ -98,7 +98,7 @@ for i, nom in ipairs({"VOITURES", "AMÉLIORER", "PEINTURE"}) do
 end
 
 local contenu = Instance.new("ScrollingFrame")
-contenu.Size = UDim2.new(1, -40, 1, -210)
+contenu.Size = UDim2.new(1, -40, 1, -214)
 contenu.Position = UDim2.fromOffset(20, 104)
 contenu.BackgroundTransparency = 1
 contenu.BorderSizePixel = 0
@@ -108,7 +108,8 @@ contenu.CanvasSize = UDim2.new()
 contenu.Parent = panneau
 
 -- le message du serveur ("Pas assez de pieces"...) et le resume
-local lMessage = texte(panneau, "", UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -100), 15, BLANC, true)
+local lMessage = texte(panneau, "", UDim2.new(1, -40, 0, 30), UDim2.new(0, 20, 1, -104), 15, BLANC, true)
+local lEtat = texte(panneau, "", UDim2.new(1, -40, 0, 30), UDim2.new(0, 20, 1, -72), 13, BLANC, true)
 local lResume = texte(panneau, "", UDim2.new(1, -170, 0, 30), UDim2.new(0, 20, 1, -40), 13, Color3.fromRGB(170, 175, 185))
 local fermer = bouton(panneau, "FERMER", UDim2.new(0, 110, 0, 30), UDim2.new(1, -130, 1, -40), ROUGE)
 
@@ -285,6 +286,16 @@ function AFFICHAGE.rafraichir()
 	local r = Catalogue.reglages(etat.voiture, etat.niveaux)
 	lResume.Text = "Prochaine course : " .. etat.voiture .. "  —  moteur " .. enX(r.Puissance)
 		.. ", vitesse " .. enX(r.VitesseMax) .. ", freins " .. enX(r.Freinage) .. ", solidité " .. enX(r.Solidite)
+	-- l etat de MA voiture : les degats restent d une course a l autre
+	local nbPerdues = #(etat.perdues or {})
+	if (etat.etatVoiture or 100) < 100 or nbPerdues > 0 then
+		lEtat.Text = string.format("🔧 État : %d %%  —  %d pièce(s) perdue(s)  →  répare-la à un POSTE (%s)",
+			math.floor(etat.etatVoiture), nbPerdues, prixTexte(etat.prixReparation))
+		lEtat.TextColor3 = (etat.etatVoiture <= 0) and ROUGE or JAUNE
+	else
+		lEtat.Text = "✅ État : 100 %  —  ta voiture est comme neuve"
+		lEtat.TextColor3 = VERT
+	end
 end
 
 -- =========================================================

@@ -52,8 +52,29 @@ local function equiper(voiture, joueur)
 	local couleur = joueur:GetAttribute("G_Couleur")
 	if couleur then Catalogue.peindre(voiture, couleur) end
 	voiture:SetAttribute("Modele", joueur:GetAttribute("G_Voiture") or "Jesko")
-	voiture:SetAttribute("Etat", 100)        -- neuve (script Degats)
+	-- SES DEGATS de la course d avant (ils restent jusqu a la reparation
+	-- au garage) : l usure de chaque morceau ("3:40" = le morceau 3 a 40
+	-- PV, le script Degats le noircit), son etat, et les morceaux perdus
+	-- qu on enleve
+	for _, x in ipairs(string.split(joueur:GetAttribute("G_Usure") or "", ",")) do
+		local i, pv = string.match(x, "^(%d+):(%d+)$")
+		if i then voiture:SetAttribute("PV" .. i, tonumber(pv)) end
+	end
+	voiture:SetAttribute("Etat", joueur:GetAttribute("G_Etat") or 100)
+	local perdues = joueur:GetAttribute("G_Perdues") or ""
+	voiture:SetAttribute("Perdues", perdues)
+	if perdues ~= "" then
+		for _, partie in ipairs(Catalogue.partiesDe(voiture, string.split(perdues, ","))) do
+			partie:Destroy()
+		end
+	end
 end
+
+-- Une voiture DETRUITE (0 %) ne peut pas courir : il faut la reparer.
+local function detruite(joueur)
+	return (joueur:GetAttribute("G_Etat") or 100) <= 0
+end
+local MESSAGE_DETRUITE = "Ta voiture est détruite ! Répare-la au garage (sous le spawn) 🔧"
 
 local choix = {}         -- choix[joueur] = nom de sa place ("Place3"...)
 local ouverts = {}       -- ouverts[joueur] = true si son ecran de choix est ouvert
@@ -181,6 +202,10 @@ end
 -- generateur (nouveau bouton), ce script n a rien a refaire.
 ProximityPromptService.PromptTriggered:Connect(function(prompt, joueur)
 	if prompt.Name ~= "PromptCourse" then return end
+	if detruite(joueur) then
+		evt:FireClient(joueur, "message", MESSAGE_DETRUITE)
+		return
+	end
 	local ok, raison = coursePossible()
 	if not ok then
 		evt:FireClient(joueur, "message", raison)
@@ -193,7 +218,7 @@ end)
 -- ---- CE QUE LES ECRANS NOUS ENVOIENT ----
 evt.OnServerEvent:Connect(function(joueur, action, nomPlace)
 	if action == "choisir" and type(nomPlace) == "string" then
-		if not coursePossible() then return end
+		if not coursePossible() or detruite(joueur) then return end
 		-- la place existe ?
 		local existe = false
 		for _, p in ipairs(places()) do

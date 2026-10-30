@@ -1,20 +1,22 @@
 -- ============================================================
---  LE GARAGE, DANS LA SALLE SOUS LE SPAWN (generateur)
+--  LE GARAGE, DANS LA SALLE RONDE SOUS LE SPAWN (generateur)
 --  A lancer UNE fois dans Studio, en mode Edit (comme ZoneSpawn ou
 --  SalleSousSpawn). On y descend par les deux escaliers derriere le
 --  spawn. Il construit dans workspace.ZoneSpawn.Garage :
---    - un sol d atelier gris, borde de lignes jaunes ;
---    - la VITRINE : une Jesko sur un plateau tournant ;
---    - 2 BORNES "Ouvrir le garage" ;
---    - le decor : enseigne, etabli, armoires, piles de pneus, 2 ponts.
---  Les regles (acheter, ameliorer, peindre) sont dans GarageServeur et
---  Garage.client.
+--    - un sol d atelier en DEMI-ROND qui suit le mur, borde de jaune ;
+--    - 4 POSTES DE REPARATION le long du mur rond, tournes vers le
+--      centre : un pont elevateur, un ecran, un pupitre, des etincelles ;
+--    - au centre, la VITRINE (une voiture sur un plateau tournant) et 2
+--      BORNES "Ouvrir le garage" ;
+--    - contre le mur du fond : l enseigne, l etabli, les armoires, des pneus.
+--  Les regles (acheter, ameliorer, peindre, reparer) sont dans
+--  GarageServeur et Garage.client.
 --
---  Tout se DEDUIT des pieces deja la : le CENTRE est sous le
---  SpawnLocation, le SOL est trouve par un rayon, et le DEVANT est la
---  direction qui part du mur du fond (MurFondSalle) vers le centre. On
---  travaille dans ce repere : base * CFrame.new(x, y, z), avec -Z vers
---  le mur rond (cote piste) et +Z vers le mur du fond.
+--  TOUT SUIT LE ROND, et le rond est MESURE : on prend les morceaux du
+--  mur (MurRondSalle) et on cherche le cercle qui passe au mieux par eux
+--  (centre et rayon). Ensuite on place tout en COORDONNEES POLAIRES :
+--  une distance au centre (r) et un angle (a, 0 = droit devant, vers le
+--  mur rond ; positif = vers la droite).
 --  ⚠️ Il modifie la place : Ctrl+S apres !
 --  ⚠️ Si on relance SalleSousSpawn, relancer celui-ci.
 -- ============================================================
@@ -23,50 +25,82 @@ local ServerStorage = game:GetService("ServerStorage")
 local zone  = workspace:WaitForChild("ZoneSpawn")
 local salle = zone:WaitForChild("SalleSousSpawn")
 
--- ---- LES REGLAGES (dans le repere du garage) ----
-local X_ZONE    = 40      -- le sol d atelier va de -40 a +40 en X...
-local Z_AVANT   = -38     -- ...et de -38 (vers le mur rond)
-local Z_ARRIERE = 30      -- a +30 (vers le mur du fond)
-local Z_VITRINE = -6      -- le plateau tournant
-local R_VITRINE = 13
+-- ---- LES REGLAGES ----
+local MARGE_MUR  = 3      -- le sol d atelier s arrete 3 studs avant le mur rond
+local PAS_ANGLE  = 3      -- le demi-rond est fait de tranches de 3 degres
+local R_NEON     = 40     -- un cercle de neon au sol, entre la vitrine et les postes
+local R_POSTES   = 52     -- les postes de reparation, a 52 studs du centre...
+local A_POSTES   = {-60, -24, 24, 60}   -- ...a ces angles (degres)
+local R_VITRINE  = 20     -- la vitrine, droit devant (angle 0), a 20 studs du centre
+local RAYON_DISQUE = 12   -- le rayon du plateau tournant
 
-local BLANC = Color3.fromRGB(240, 240, 245)
-local GRIS  = Color3.fromRGB(70, 74, 82)
-local NOIR  = Color3.fromRGB(25, 25, 28)
-local NEON  = Color3.fromRGB(0, 225, 255)    -- le meme bleu que les neons de la salle
-local JAUNE = Color3.fromRGB(255, 200, 40)
-local ROUGE = Color3.fromRGB(200, 45, 40)
+local BLANC  = Color3.fromRGB(240, 240, 245)
+local GRIS   = Color3.fromRGB(70, 74, 82)
+local SOMBRE = Color3.fromRGB(45, 47, 54)
+local NOIR   = Color3.fromRGB(25, 25, 28)
+local NEON   = Color3.fromRGB(0, 225, 255)    -- le meme bleu que les neons de la salle
+local JAUNE  = Color3.fromRGB(255, 200, 40)
+local ORANGE = Color3.fromRGB(255, 140, 30)
+local ROUGE  = Color3.fromRGB(200, 45, 40)
 
 -- ---- ON REPART DE ZERO (le relancer ne fait pas de double) ----
 local ancien = zone:FindFirstChild("Garage")
 if ancien then ancien:Destroy() end
 
--- ---- LE REPERE ----
-local spawn  = zone:WaitForChild("SpawnLocation")
+-- =========================================================
+-- 1. LE ROND, MESURE
+-- Le cercle qui passe au mieux par les morceaux du mur (methode des
+-- "moindres carres", la meme qu un tableur pour tracer une droite).
+-- =========================================================
+local murs = {}
+for _, p in ipairs(salle:GetChildren()) do
+	if p.Name == "MurRondSalle" then table.insert(murs, p) end
+end
+assert(#murs >= 3, "pas de mur rond : lancer d abord SalleSousSpawn")
+local mx, mz = 0, 0
+for _, p in ipairs(murs) do mx += p.Position.X; mz += p.Position.Z end
+mx, mz = mx / #murs, mz / #murs
+local Suu, Svv, Suv, Suuu, Svvv, Suvv, Svuu = 0, 0, 0, 0, 0, 0, 0
+for _, p in ipairs(murs) do
+	local u, v = p.Position.X - mx, p.Position.Z - mz
+	Suu += u * u; Svv += v * v; Suv += u * v
+	Suuu += u ^ 3; Svvv += v ^ 3; Suvv += u * v * v; Svuu += v * u * u
+end
+local det = Suu * Svv - Suv * Suv
+local uc = (0.5 * (Suuu + Suvv) * Svv - 0.5 * (Svvv + Svuu) * Suv) / det
+local vc = (Suu * 0.5 * (Svvv + Svuu) - Suv * 0.5 * (Suuu + Suvv)) / det
+local epaisseurMur = math.min(murs[1].Size.X, murs[1].Size.Z)
+local rayonMur = math.sqrt(uc * uc + vc * vc + (Suu + Svv) / #murs) - epaisseurMur / 2   -- la face interieure
+
+-- le sol, sous le centre : un rayon qui descend
 local murFond = salle:WaitForChild("MurFondSalle")
 local rayon = RaycastParams.new()
 rayon.FilterType = Enum.RaycastFilterType.Include
 rayon.FilterDescendantsInstances = {zone}
--- le sol de la salle, sous le spawn : un rayon qui part sous le plafond
-local haut = Vector3.new(spawn.Position.X, murFond.Position.Y, spawn.Position.Z)
+local haut = Vector3.new(uc + mx, murFond.Position.Y, vc + mz)
 local touche = workspace:Raycast(haut, Vector3.new(0, -60, 0), rayon)
-assert(touche, "pas de sol sous le spawn : lancer d abord SalleSousSpawn")
-local centre = Vector3.new(spawn.Position.X, touche.Position.Y, spawn.Position.Z)
--- le devant : du mur du fond vers le centre, a plat
+assert(touche, "pas de sol au centre du rond")
+local centre = Vector3.new(uc + mx, touche.Position.Y, vc + mz)
+
+-- le repere : au centre, -Z = droit devant (du mur du fond vers le rond)
 local versDevant = (centre - murFond.Position) * Vector3.new(1, 0, 1)
 local base = CFrame.lookAt(centre, centre + versDevant.Unit)
--- le mur du fond, vu dans ce repere : sa face cote salle
 local zFond = base:PointToObjectSpace(murFond.Position).Z - murFond.Size.Z / 2
+local R_SOL = rayonMur - MARGE_MUR
+
+-- un repere a la distance r et a l angle a (degres), -Z tourne vers le mur
+local function polaire(r, a, y)
+	return base * CFrame.Angles(0, -math.rad(a), 0) * CFrame.new(0, y or 0, -r)
+end
 
 local garage = Instance.new("Folder")
 garage.Name = "Garage"
 
--- Un pave dans le repere du garage, donne par ses bords
-local function pave(nom, x1, x2, y1, y2, z1, z2, couleur, matiere, parent)
+local function piece(nom, taille, cf, couleur, matiere, parent)
 	local p = Instance.new("Part")
 	p.Name = nom
-	p.Size = Vector3.new(x2 - x1, y2 - y1, z2 - z1)
-	p.CFrame = base * CFrame.new((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2)
+	p.Size = taille
+	p.CFrame = cf
 	p.Color = couleur
 	p.Material = matiere or Enum.Material.SmoothPlastic
 	p.Anchored = true
@@ -75,12 +109,13 @@ local function pave(nom, x1, x2, y1, y2, z1, z2, couleur, matiere, parent)
 	return p
 end
 
--- Un texte sur une face d une piece
-local function ecrire(p, face, texte, couleur)
+-- un texte sur une face d une piece
+local function ecrire(p, face, texte, couleur, nom)
 	local g = Instance.new("SurfaceGui")
 	g.Face = face
-	g.PixelsPerStud = 20
+	g.PixelsPerStud = 25
 	local t = Instance.new("TextLabel")
+	t.Name = nom or "Texte"
 	t.Size = UDim2.fromScale(1, 1)
 	t.BackgroundTransparency = 1
 	t.Font = Enum.Font.GothamBlack
@@ -89,38 +124,146 @@ local function ecrire(p, face, texte, couleur)
 	t.Text = texte
 	t.Parent = g
 	g.Parent = p
+	return t
 end
 
--- ============================================================
--- 1. LE SOL D ATELIER, borde de jaune
--- ============================================================
-local SOL = 0.1    -- son epaisseur, pose sur le sol noir de la salle
-local sol = pave("SolGarage", -X_ZONE, X_ZONE, 0, SOL, Z_AVANT, Z_ARRIERE, GRIS)
-sol.Reflectance = 0.08
-for _, b in ipairs({
-	{-X_ZONE, X_ZONE, Z_AVANT, Z_AVANT + 0.6}, {-X_ZONE, X_ZONE, Z_ARRIERE - 0.6, Z_ARRIERE},
-	{-X_ZONE, -X_ZONE + 0.6, Z_AVANT, Z_ARRIERE}, {X_ZONE - 0.6, X_ZONE, Z_AVANT, Z_ARRIERE},
-}) do
-	local l = pave("LigneSol", b[1], b[2], SOL, SOL + 0.02, b[3], b[4], JAUNE)
+-- =========================================================
+-- 2. LE SOL EN DEMI-ROND
+-- Des tranches fines qui partent du centre, comme les parts d une
+-- tarte (comme le sol du spawn), + une bande jusqu au mur du fond.
+-- =========================================================
+local SOL = 0.1
+local largeurTranche = 2 * R_SOL * math.tan(math.rad(PAS_ANGLE / 2)) + 0.3
+for a = -90, 90, PAS_ANGLE do
+	piece("SolGarage", Vector3.new(largeurTranche, SOL, R_SOL), polaire(R_SOL / 2, a, SOL / 2), GRIS)
+	-- le bord jaune, et le cercle de neon
+	local l = piece("BordSol", Vector3.new(2 * R_SOL * math.sin(math.rad(PAS_ANGLE / 2)) + 0.2, 0.04, 0.6),
+		polaire(R_SOL - 0.4, a, SOL + 0.02), JAUNE)
 	l.CanCollide = false
+	local n = piece("CercleNeon", Vector3.new(2 * R_NEON * math.sin(math.rad(PAS_ANGLE / 2)) + 0.1, 0.04, 0.35),
+		polaire(R_NEON, a, SOL + 0.02), NEON, Enum.Material.Neon)
+	n.CanCollide = false
+end
+-- (pas plus large que le mur du fond : sinon elle entre dans les murs d a cote)
+local largeurFond = math.min(2 * R_SOL, murFond.Size.X - 0.2)
+piece("SolGarage", Vector3.new(largeurFond, SOL, zFond - 0.05), base * CFrame.new(0, SOL / 2, zFond / 2), GRIS)
+
+-- =========================================================
+-- 3. LES POSTES DE REPARATION
+-- Chacun dans SON repere : -Z vers le mur (le nez de la voiture), +Z
+-- vers le centre (la ou on se tient). GarageServeur fait monter les
+-- "Bras", allume les etincelles et le gyrophare, ecrit sur l ecran.
+-- =========================================================
+local function poste(numero, a)
+	local m = Instance.new("Model")
+	m.Name = "PosteReparation"
+	m:SetAttribute("Numero", numero)
+	local S = polaire(R_POSTES, a)
+	local function ici(x, y, z) return S * CFrame.new(x, y, z) end
+
+	-- le socle, avec des bandes jaunes aux deux bouts
+	piece("Socle", Vector3.new(11, 0.3, 21), ici(0, SOL + 0.15, 0), SOMBRE, Enum.Material.DiamondPlate, m)
+	for _, z in ipairs({-10.1, 10.1}) do
+		piece("BandeSocle", Vector3.new(11, 0.32, 0.8), ici(0, SOL + 0.16, z), JAUNE, nil, m)
+	end
+	-- les 2 piliers et la traverse du pont
+	for _, s in ipairs({-1, 1}) do
+		piece("PlatinePilier", Vector3.new(3, 0.4, 3), ici(s * 7.2, SOL + 0.2, 0), SOMBRE, Enum.Material.Metal, m)
+		piece("Pilier", Vector3.new(1.6, 12, 1.6), ici(s * 7.2, SOL + 6, 0), ORANGE, Enum.Material.Metal, m)
+		-- ce qui MONTE : le chariot sur le pilier et les 2 bras sous la voiture
+		piece("Bras", Vector3.new(2.2, 1.4, 2.2), ici(s * 7.2, SOL + 1.2, 0), GRIS, Enum.Material.Metal, m)
+		for _, z in ipairs({-3, 3}) do
+			piece("Bras", Vector3.new(5.6, 0.4, 0.8), ici(s * 4.2, SOL + 0.7, z), GRIS, Enum.Material.Metal, m)
+		end
+	end
+	piece("Traverse", Vector3.new(16, 0.8, 1.4), ici(0, SOL + 12.4, 0), ORANGE, Enum.Material.Metal, m)
+
+	-- le gyrophare (allume pendant la reparation)
+	local gyro = Instance.new("Part")
+	gyro.Name = "Gyrophare"
+	gyro.Shape = Enum.PartType.Cylinder
+	gyro.Size = Vector3.new(0.8, 1.2, 1.2)
+	gyro.CFrame = ici(0, SOL + 13.2, 0) * CFrame.Angles(0, 0, math.rad(90))
+	gyro.Color = ORANGE
+	gyro.Material = Enum.Material.SmoothPlastic
+	gyro.Anchored = true
+	gyro.Parent = m
+	local lumiere = Instance.new("PointLight")
+	lumiere.Color = ORANGE
+	lumiere.Range = 18
+	lumiere.Brightness = 2
+	lumiere.Enabled = false
+	lumiere.Parent = gyro
+
+	-- l ecran, accroche sous la traverse, tourne vers le centre (+Z)
+	local ecran = piece("Ecran", Vector3.new(8, 3.4, 0.3), ici(0, SOL + 10, 0.9), NOIR, nil, m)
+	ecrire(ecran, Enum.NormalId.Back, "LIBRE\nAppuie sur E pour réparer", BLANC)
+	local titre = piece("TitrePoste", Vector3.new(8, 0.9, 0.3), ici(0, SOL + 12.2, 0.9), NOIR, nil, m)
+	ecrire(titre, Enum.NormalId.Back, "POSTE " .. numero, JAUNE)
+
+	-- le pupitre de commande, cote centre, a gauche : c est la qu on appuie
+	piece("Pupitre", Vector3.new(1.6, 3.4, 1.2), ici(-8, SOL + 1.7, 9), GRIS, Enum.Material.Metal, m)
+	local dessus = piece("BoitierPupitre", Vector3.new(2.2, 0.8, 1.6), ici(-8, SOL + 3.6, 9) * CFrame.Angles(math.rad(25), 0, 0), SOMBRE, nil, m)
+	for i, c in ipairs({Color3.fromRGB(60, 220, 90), ROUGE, JAUNE}) do
+		piece("BoutonPupitre", Vector3.new(0.35, 0.15, 0.35), dessus.CFrame * CFrame.new(-0.6 + (i - 1) * 0.6, 0.45, 0), c, Enum.Material.Neon, m)
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PromptReparer"
+	prompt.ActionText = "Réparer ma voiture"
+	prompt.ObjectText = "Poste " .. numero
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = dessus
+
+	-- le chariot a outils, a droite
+	piece("ChariotOutils", Vector3.new(2.4, 3, 1.6), ici(8, SOL + 1.5, 9), ROUGE, Enum.Material.Metal, m)
+	for k = 1, 3 do
+		piece("TiroirChariot", Vector3.new(2.1, 0.12, 0.05), ici(8, SOL + k * 0.85, 9.82), Color3.fromRGB(190, 190, 195), Enum.Material.Metal, m)
+	end
+
+	-- les etincelles (eteintes), sur les cotes de la voiture
+	for _, x in ipairs({-5, 5}) do
+		for _, z in ipairs({-6, 5}) do
+			local att = Instance.new("Attachment")
+			att.Name = "Etincelles"
+			att.Parent = m:FindFirstChild("Socle")     -- d abord le parent, puis la position
+			att.WorldCFrame = ici(x, SOL + 2, z)
+			local e = Instance.new("ParticleEmitter")
+			e.Color = ColorSequence.new(Color3.fromRGB(255, 220, 120), ORANGE)
+			e.LightEmission = 1
+			e.Size = NumberSequence.new(0.15, 0)
+			e.Lifetime = NumberRange.new(0.25, 0.5)
+			e.Speed = NumberRange.new(8, 14)
+			e.SpreadAngle = Vector2.new(60, 60)
+			e.Acceleration = Vector3.new(0, -40, 0)
+			e.Rate = 35
+			e.Enabled = false
+			e.Parent = att
+		end
+	end
+
+	-- le numero, peint au sol devant le poste
+	local marque = piece("NumeroSol", Vector3.new(6, 0.04, 2.4), ici(0, SOL + 0.03, 12.6), GRIS, nil, m)
+	marque.CanCollide = false
+	marque.Transparency = 1
+	ecrire(marque, Enum.NormalId.Top, "POSTE " .. numero, JAUNE)
+
+	m.Parent = garage
+end
+for i, a in ipairs(A_POSTES) do
+	poste(i, a)
 end
 
--- ============================================================
--- 2. L ENSEIGNE, en grand sur le mur du fond
--- ============================================================
-local enseigne = pave("EnseigneGarage", -26, 26, 20, 30, zFond - 0.6, zFond - 0.1, NOIR)
-ecrire(enseigne, Enum.NormalId.Front, "🔧 GARAGE", NEON)
-pave("NeonEnseigne", -27, 27, 19.5, 20, zFond - 0.7, zFond - 0.1, NEON, Enum.Material.Neon)
-pave("NeonEnseigne", -27, 27, 30, 30.5, zFond - 0.7, zFond - 0.1, NEON, Enum.Material.Neon)
-
--- ============================================================
--- 3. LA VITRINE : une Jesko sur un plateau tournant
--- ============================================================
-local centreVitrine = base * CFrame.new(0, SOL, Z_VITRINE)
+-- =========================================================
+-- 4. LA VITRINE, droit devant, et les 2 bornes
+-- =========================================================
+local centreVitrine = polaire(R_VITRINE, 0, SOL)
 local disque = Instance.new("Part")
 disque.Name = "PlateauTournant"
 disque.Shape = Enum.PartType.Cylinder
-disque.Size = Vector3.new(0.6, R_VITRINE * 2, R_VITRINE * 2)
+disque.Size = Vector3.new(0.6, RAYON_DISQUE * 2, RAYON_DISQUE * 2)
 disque.CFrame = centreVitrine * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90))
 disque.Color = Color3.fromRGB(35, 35, 40)
 disque.Material = Enum.Material.Metal
@@ -128,7 +271,7 @@ disque.Anchored = true
 disque.Parent = garage
 local anneau = disque:Clone()
 anneau.Name = "AnneauNeon"
-anneau.Size = Vector3.new(0.5, R_VITRINE * 2 + 1, R_VITRINE * 2 + 1)
+anneau.Size = Vector3.new(0.5, RAYON_DISQUE * 2 + 1, RAYON_DISQUE * 2 + 1)
 anneau.CFrame = disque.CFrame * CFrame.new(-0.1, 0, 0)
 anneau.Material = Enum.Material.Neon
 anneau.Color = NEON
@@ -163,15 +306,11 @@ vitrine:PivotTo(cible * decalage:Inverse())
 vitrine:SetAttribute("Centre", dessusDisque.Position)
 vitrine.ModelStreamingMode = Enum.ModelStreamingMode.Atomic   -- elle arrive d un bloc chez le joueur
 
--- ============================================================
--- 4. LES BORNES "OUVRIR LE GARAGE", devant la vitrine
--- ============================================================
-local function borne(x, z)
+local function borne(cf)
 	local b = Instance.new("Model")
 	b.Name = "BorneGarage"
-	pave("Pied", x - 1.5, x + 1.5, SOL, SOL + 3.5, z - 1, z + 1, GRIS, Enum.Material.Metal, b)
-	local ecran = pave("Ecran", x - 1.4, x + 1.4, SOL + 3.5, SOL + 5.5, z - 0.2, z + 0.2, NEON, Enum.Material.Neon, b)
-	ecran.CFrame = ecran.CFrame * CFrame.Angles(math.rad(20), 0, 0)
+	local pied = piece("Pied", Vector3.new(3, 3.5, 2), cf * CFrame.new(0, SOL + 1.75, 0), GRIS, Enum.Material.Metal, b)
+	piece("Ecran", Vector3.new(2.8, 2, 0.4), cf * CFrame.new(0, SOL + 4.5, 0) * CFrame.Angles(math.rad(20), 0, 0), NEON, Enum.Material.Neon, b)
 	local p = Instance.new("ProximityPrompt")
 	p.Name = "PromptGarage"
 	p.ActionText = "Ouvrir le garage"
@@ -180,61 +319,54 @@ local function borne(x, z)
 	p.HoldDuration = 0
 	p.MaxActivationDistance = 10
 	p.RequiresLineOfSight = false
-	p.Parent = b.Pied
+	p.Parent = pied
 	b.Parent = garage
 end
-borne(-14, Z_VITRINE + R_VITRINE + 5)
-borne(14, Z_VITRINE + R_VITRINE + 5)
+-- de chaque cote de la vitrine, tournees vers le fond (la ou on arrive)
+borne(base * CFrame.new(-RAYON_DISQUE - 4, 0, -R_VITRINE + 6) * CFrame.Angles(0, math.rad(180), 0))
+borne(base * CFrame.new(RAYON_DISQUE + 4, 0, -R_VITRINE + 6) * CFrame.Angles(0, math.rad(180), 0))
 
--- ============================================================
--- 5. LE DECOR
--- ============================================================
--- l etabli et le panneau a outils, contre le mur du fond (sous l enseigne)
-local zEtabli = zFond - 2.5
-pave("Etabli", -10, 10, SOL + 3, SOL + 3.5, zEtabli - 2, zEtabli + 2, Color3.fromRGB(120, 85, 50), Enum.Material.Wood)
+-- =========================================================
+-- 5. CONTRE LE MUR DU FOND : enseigne, etabli, armoires, pneus
+-- =========================================================
+local function fond(x, y, z) return base * CFrame.new(x, y, zFond - z) end
+local enseigne = piece("EnseigneGarage", Vector3.new(52, 10, 0.5), fond(0, 25, 0.35), NOIR)
+ecrire(enseigne, Enum.NormalId.Front, "🔧 GARAGE", NEON)
+piece("NeonEnseigne", Vector3.new(54, 0.5, 0.6), fond(0, 19.75, 0.4), NEON, Enum.Material.Neon)
+piece("NeonEnseigne", Vector3.new(54, 0.5, 0.6), fond(0, 30.25, 0.4), NEON, Enum.Material.Neon)
+
+piece("Etabli", Vector3.new(20, 0.5, 4), fond(0, SOL + 3.25, 2.5), Color3.fromRGB(120, 85, 50), Enum.Material.Wood)
 for _, x in ipairs({-9.5, 9.5}) do
-	pave("PiedEtabli", x - 0.3, x + 0.3, SOL, SOL + 3, zEtabli - 1.7, zEtabli + 1.7, GRIS, Enum.Material.Metal)
+	piece("PiedEtabli", Vector3.new(0.6, 3, 3.4), fond(x, SOL + 1.5, 2.5), GRIS, Enum.Material.Metal)
 end
-pave("PanneauOutils", -10, 10, SOL + 5, SOL + 11, zFond - 0.4, zFond - 0.1, ROUGE)
+piece("PanneauOutils", Vector3.new(20, 6, 0.3), fond(0, SOL + 8, 0.25), ROUGE)
 for i = -4, 4 do
-	pave("Outil", i * 2 - 0.2, i * 2 + 0.2, SOL + 6, SOL + 10 - math.abs(i) * 0.3, zFond - 0.6, zFond - 0.4,
-		Color3.fromRGB(185, 185, 195), Enum.Material.Metal)
+	local h = 4 - math.abs(i) * 0.3
+	piece("Outil", Vector3.new(0.4, h, 0.2), fond(i * 2, SOL + 6 + h / 2, 0.5), Color3.fromRGB(185, 185, 195), Enum.Material.Metal)
 end
--- les armoires rouges, de chaque cote de l etabli
 for _, x in ipairs({-15, 15}) do
-	pave("Armoire", x - 3, x + 3, SOL, SOL + 5, zFond - 2.2, zFond - 0.1, ROUGE, Enum.Material.Metal)
+	piece("Armoire", Vector3.new(6, 5, 2), fond(x, SOL + 2.5, 1.2), ROUGE, Enum.Material.Metal)
 	for k = 1, 3 do
-		pave("Tiroir", x - 2.6, x + 2.6, SOL + k * 1.4, SOL + k * 1.4 + 0.15, zFond - 2.3, zFond - 2.2, Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
+		piece("Tiroir", Vector3.new(5.2, 0.15, 0.1), fond(x, SOL + k * 1.4, 2.25), Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
 	end
 end
--- des piles de pneus
-local function pneus(x, z, n)
+local function pneus(x, n)
 	for i = 1, n do
 		local p = Instance.new("Part")
 		p.Name = "Pneu"
 		p.Shape = Enum.PartType.Cylinder
 		p.Size = Vector3.new(1.2, 3.4, 3.4)
-		p.CFrame = base * CFrame.new(x, SOL + 0.6 + (i - 1) * 1.2, z) * CFrame.Angles(0, 0, math.rad(90))
+		p.CFrame = fond(x, SOL + 0.6 + (i - 1) * 1.2, 2.5) * CFrame.Angles(0, 0, math.rad(90))
 		p.Color = NOIR
 		p.Material = Enum.Material.Rubber
 		p.Anchored = true
 		p.Parent = garage
 	end
 end
-for _, x in ipairs({-36, -32, -28, 28, 32, 36}) do
-	pneus(x, Z_ARRIERE - 3, 4)
+for _, x in ipairs({-24, -28, 24, 28}) do
+	pneus(x, 4)
 end
--- deux ponts elevateurs (le decor d un vrai garage), sur les cotes
-local function pont(x)
-	for _, z in ipairs({-8, 8}) do
-		pave("PilierPont", x - 0.8, x + 0.8, SOL, SOL + 12, z - 0.8, z + 0.8, JAUNE, Enum.Material.Metal)
-		pave("BrasPont", x - 4, x + 4, SOL + 3, SOL + 3.4, z - 0.4, z + 0.4, GRIS, Enum.Material.Metal)
-	end
-	pave("TraversePont", x - 0.6, x + 0.6, SOL + 12, SOL + 13, -9, 9, JAUNE, Enum.Material.Metal)
-end
-pont(-30)
-pont(30)
 
 garage.Parent = zone
-print(string.format("Garage : atelier de %d x %d studs sous le spawn (sol a Y = %.2f), vitrine et 2 bornes",
-	X_ZONE * 2, Z_ARRIERE - Z_AVANT, centre.Y))
+print(string.format("Garage : rond mesure (centre %.1f, %.1f ; rayon %.1f), sol en demi-rond de rayon %.1f, %d postes de reparation",
+	centre.X, centre.Z, rayonMur, R_SOL, #A_POSTES))

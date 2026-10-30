@@ -59,7 +59,59 @@ Catalogue.COULEURS = {
 
 -- Les pieces de la carrosserie qu on repeint (les autres : vitres,
 -- chrome, phares... gardent leur couleur). Mesure sur la Jesko.
-Catalogue.PEINTURE = {["Paint"] = true, ["Paint L"] = true, ["Paint R"] = true}
+Catalogue.PEINTURE = {["Paint"] = true, ["Paint L"] = true, ["Paint R"] = true, ["PareChocsAvant"] = true}
+
+-- LES PIECES QUI PEUVENT TOMBER dans un choc, rangees par COTE de la
+-- voiture. Chaque piece = une ou plusieurs parties du modele (leur nom).
+-- Dans chaque cote, les petites d abord, les grosses a la fin.
+-- (PareChocsAvant et PiedAileron : renommees le 2026-10-30, elles
+-- s appelaient "Paint" et "Paint 2" comme d autres parties.)
+Catalogue.PIECES = {
+	{nom = "Rétroviseur gauche", cote = "GAUCHE", parties = {"Mirror L"}},
+	{nom = "Écope gauche",       cote = "GAUCHE", parties = {"CF L", "Badge L"}},
+	{nom = "Portière gauche",    cote = "GAUCHE", parties = {"Paint L", "Window(s) L"}},
+	{nom = "Rétroviseur droit",  cote = "DROITE", parties = {"Mirror R"}},
+	{nom = "Écope droite",       cote = "DROITE", parties = {"CF R"}},
+	{nom = "Portière droite",    cote = "DROITE", parties = {"Paint R", "Window(s) R"}},
+	{nom = "Logo",               cote = "AVANT",  parties = {"Koenigsegg Badge"}},
+	{nom = "Phare gauche",       cote = "AVANT",  parties = {"F L L"}},
+	{nom = "Phare droit",        cote = "AVANT",  parties = {"F L R"}},
+	{nom = "Bandeau de phares",  cote = "AVANT",  parties = {"DRLs", "Daytime"}},
+	{nom = "Pare-chocs avant",   cote = "AVANT",  parties = {"PareChocsAvant"}},
+	{nom = "Feu arrière gauche", cote = "ARRIERE", parties = {"R L L"}},
+	{nom = "Feu arrière droit",  cote = "ARRIERE", parties = {"R L R"}},
+	{nom = "Aileron",            cote = "ARRIERE", parties = {"Badges", "PiedAileron"}},
+}
+
+-- LA REPARATION au garage : 1 piece 🪙 par tranche de 10 % abimes
+-- (commencee), et 2 par piece perdue.
+function Catalogue.prixReparation(etat, perdues)
+	return math.ceil((100 - etat) / 10) + 2 * #perdues
+end
+
+function Catalogue.piece(nom)
+	for _, p in ipairs(Catalogue.PIECES) do
+		if p.nom == nom then return p end
+	end
+	return nil
+end
+
+-- Les parties du modele qui forment ces pieces (pour les enlever ou les
+-- faire tomber). Rend une liste de BaseParts.
+function Catalogue.partiesDe(modele, nomsPieces)
+	local voulues = {}
+	for _, nom in ipairs(nomsPieces) do
+		local p = Catalogue.piece(nom)
+		if p then
+			for _, n in ipairs(p.parties) do voulues[n] = true end
+		end
+	end
+	local liste = {}
+	for _, d in ipairs(modele:GetDescendants()) do
+		if d:IsA("BasePart") and voulues[d.Name] then table.insert(liste, d) end
+	end
+	return liste
+end
 
 function Catalogue.voiture(nom)
 	for _, v in ipairs(Catalogue.VOITURES) do

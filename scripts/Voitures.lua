@@ -152,7 +152,9 @@ rayon.FilterType = Enum.RaycastFilterType.Exclude
 -- En l air (rien dessous, ou sol a plus de EN_L_AIR studs), on dit non :
 -- c est l atterrissage qui decidera.
 local function horsPiste(siege)
-	local ignores = {dossier, circuit:FindFirstChild("Piques"), circuit:FindFirstChild("CagesDepart")}
+	-- (et les morceaux tombes des voitures : rouler dessus n est pas sortir de la route)
+	local ignores = {dossier, circuit:FindFirstChild("Piques"), circuit:FindFirstChild("CagesDepart"),
+		workspace:FindFirstChild("PiecesTombees")}
 	for _, j in ipairs(Players:GetPlayers()) do
 		if j.Character then table.insert(ignores, j.Character) end
 	end

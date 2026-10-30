@@ -23,8 +23,14 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 - Tout est testé en Play (checkpoints, coupe, abandon, choc, garage).
 
 **LE GARAGE est ouvert ✅ (2026-10-30)** — dans la grande salle **sous le
-spawn** (on y descend par les escaliers derrière le spawn). Bornes « Ouvrir le
-garage » devant la vitrine (une voiture qui tourne, à TA couleur).
+spawn** (on y descend par les escaliers derrière le spawn). Il **suit le
+rond** (cercle mesuré : rayon 74,5) : sol en demi-rond, vitrine au centre,
+bornes « Ouvrir le garage », et **4 postes de réparation** le long du mur.
+- **Dégâts par morceau** : seul le morceau touché s'use et noircit ; à 0 il
+  se détache et **reste sur la piste** (obstacle qui abîme les autres).
+- Les dégâts **restent** d'une course à l'autre ; voiture à 0 % = pas de
+  course avant réparation. Au poste : le pont monte, étincelles, les
+  morceaux reviennent un par un. Prix : 1 🪙 par 10 % + 2 par morceau.
 - **5 voitures** : Jesko (gratuite), Éclair 40 🪙, Comète 60, Bélier 60,
   Panthère 120 — même carrosserie, réglages différents ;
 - **améliorations** (3 niveaux, 15 / 30 / 50 🪙) : moteur, boîte, freins, carrosserie ;

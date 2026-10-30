@@ -10,15 +10,22 @@
 --  3. Pour la course : les reglages de SA voiture sont poses en attributs
 --     sur le joueur ("G_Puissance"...). DepartCourse les recopie sur la
 --     voiture ou il s assoit.
+--  4. Les DEGATS restent sur chaque voiture du joueur d une course a
+--     l autre (le script Degats nous previent a chaque choc).
+--  5. Les POSTES DE REPARATION : le pont eleve la voiture, les machines la
+--     reparent piece par piece. On paie selon les degats.
 --
 --  Le garage lui-meme (sous le spawn) est pose par le generateur
 --  scripts/Garage.lua ; les prix et les voitures sont dans
 --  ReplicatedStorage.GarageCatalogue.
 -- ============================================================
 
-local Players           = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local DataStoreService  = game:GetService("DataStoreService")
+local Players                = game:GetService("Players")
+local ReplicatedStorage      = game:GetService("ReplicatedStorage")
+local ServerStorage          = game:GetService("ServerStorage")
+local DataStoreService       = game:GetService("DataStoreService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local RunService             = game:GetService("RunService")
 
 local Catalogue = require(ReplicatedStorage:WaitForChild("GarageCatalogue"))
 
@@ -46,7 +53,16 @@ local chargeOk = {}   -- vrai si on a bien LU son garage (sinon on n ecrase rien
 local modifie  = {}   -- vrai s il y a quelque chose a sauver
 
 local function parDefaut()
-	return {voiture = "Jesko", possede = {Jesko = true}, niveaux = {}, couleur = 1}
+	-- degats[nomVoiture] = {etat = 0..100, perdues = {"Aileron", ...}}
+	return {voiture = "Jesko", possede = {Jesko = true}, niveaux = {}, couleur = 1, degats = {}}
+end
+
+-- les degats d une voiture (neuve si on n en sait rien)
+local function degatsDe(d, nom)
+	local x = d.degats[nom]
+	if type(x) ~= "table" then return {etat = 100, perdues = {}, usure = ""} end
+	return {etat = tonumber(x.etat) or 100, perdues = type(x.perdues) == "table" and x.perdues or {},
+		usure = type(x.usure) == "string" and x.usure or ""}     -- usure : "3:40,7:85" (morceau:PV)
 end
 
 local function pieces(joueur)
@@ -63,6 +79,10 @@ local function publier(joueur)
 	end
 	joueur:SetAttribute("G_Couleur", Catalogue.couleur(d.voiture, d.couleur))
 	joueur:SetAttribute("G_Voiture", d.voiture)
+	local x = degatsDe(d, d.voiture)
+	joueur:SetAttribute("G_Etat", x.etat)
+	joueur:SetAttribute("G_Perdues", table.concat(x.perdues, ","))
+	joueur:SetAttribute("G_Usure", x.usure)
 end
 
 local function sauver(joueur)
@@ -88,6 +108,7 @@ local function ouvrir(joueur)
 			d.possede.Jesko = true
 			d.niveaux = type(valeur.niveaux) == "table" and valeur.niveaux or {}
 			d.couleur = Catalogue.COULEURS[valeur.couleur] and valeur.couleur or 1
+			d.degats = type(valeur.degats) == "table" and valeur.degats or {}
 		end
 	else
 		print("Garage : garde en memoire seulement (" .. tostring(valeur) .. ")")
@@ -120,10 +141,13 @@ end)
 local function etat(joueur)
 	local d = donnees[joueur]
 	local v = pieces(joueur)
+	local x = degatsDe(d, d.voiture)
 	return {
 		voiture = d.voiture, possede = d.possede, niveaux = d.niveaux, couleur = d.couleur,
 		pieces = v and v.Value or 0,
 		illimite = illimite(joueur),
+		etatVoiture = x.etat, perdues = x.perdues,
+		prixReparation = Catalogue.prixReparation(x.etat, x.perdues),
 	}
 end
 
@@ -189,3 +213,231 @@ fonction.OnServerInvoke = function(joueur, action, valeur)
 	return etat(joueur), message, ok
 end
 
+-- =========================================================
+-- 3. LES DEGATS (le script Degats nous previent a chaque choc)
+-- =========================================================
+local signal = ServerStorage:FindFirstChild("DegatsVoiture")
+if not signal then
+	signal = Instance.new("BindableEvent")
+	signal.Name = "DegatsVoiture"
+	signal.Parent = ServerStorage
+end
+signal.Event:Connect(function(joueur, modele, etatVoiture, perdues, usure)
+	local d = donnees[joueur]
+	if not (d and Catalogue.voiture(modele)) then return end
+	d.degats[modele] = {
+		etat = math.floor(etatVoiture * 10 + 0.5) / 10,
+		perdues = (perdues ~= "") and string.split(perdues, ",") or {},
+		usure = usure or "",
+	}
+	modifie[joueur] = true
+	publier(joueur)
+end)
+
+-- =========================================================
+-- 4. LES POSTES DE REPARATION
+-- Le generateur Garage.lua a pose 4 postes ("PosteReparation") le long
+-- du mur rond. Chacun a : un Socle (ou se pose la voiture), des Bras
+-- (le pont qui monte), un Ecran, des Etincelles, un Gyrophare, et le
+-- bouton "Reparer ma voiture" (PromptReparer).
+-- =========================================================
+local HAUSSE      = 4      -- le pont monte la voiture de 4 studs
+local T_PONT      = 1.5    -- secondes pour monter (et pour descendre)
+local T_BASE      = 3      -- la reparation dure 3 s...
+local T_PAR_POINT = 0.05   -- ...+ 0.05 s par % abime...
+local T_PAR_PIECE = 1.5    -- ...+ 1.5 s par piece a remettre
+
+local info = ReplicatedStorage:WaitForChild("InfoCourse")
+local VERT  = Color3.fromRGB(90, 230, 120)
+local JAUNE = Color3.fromRGB(255, 205, 60)
+local ROUGE = Color3.fromRGB(255, 80, 80)
+
+local enReparation = {}    -- [joueur] = vrai pendant qu une de ses voitures est sur un pont
+
+-- Une copie FIGEE de la voiture (comme la vitrine) : sans scripts, ancree,
+-- on ne peut ni s y asseoir ni la pousser.
+local function voitureFigee()
+	local v = ServerStorage:WaitForChild("VoitureModele"):Clone()
+	for _, x in ipairs(v:GetDescendants()) do
+		if x:IsA("LuaSourceContainer") or x:IsA("RemoteEvent") or x:IsA("Sound") or x:IsA("Constraint") then
+			x:Destroy()
+		elseif x:IsA("VehicleSeat") or x:IsA("Seat") then
+			x.Disabled = true
+		end
+	end
+	for _, x in ipairs(v:GetDescendants()) do
+		if x:IsA("BasePart") then
+			x.Anchored = true
+			x.CanCollide, x.CanTouch, x.CanQuery = false, false, false
+		end
+	end
+	return v
+end
+
+local function ecrire(poste, texte, couleur)
+	local ecran = poste:FindFirstChild("Ecran")
+	local l = ecran and ecran:FindFirstChild("Texte", true)
+	if l then
+		l.Text = texte
+		l.TextColor3 = couleur or Color3.new(1, 1, 1)
+	end
+end
+
+local function machines(poste, allumees)
+	for _, x in ipairs(poste:GetDescendants()) do
+		if x:IsA("ParticleEmitter") or x:IsA("PointLight") then x.Enabled = allumees end
+	end
+	local g = poste:FindFirstChild("Gyrophare")
+	if g then g.Material = allumees and Enum.Material.Neon or Enum.Material.SmoothPlastic end
+end
+
+-- Le pont : on deplace la voiture ET les bras de "h" studs vers le haut
+-- (h va de 0 a HAUSSE), a partir de leur position de depart.
+local function pont(poste, voiture, departVoiture, departBras, h1, h2)
+	local debut = os.clock()
+	repeat
+		local t = math.min(1, (os.clock() - debut) / T_PONT)
+		local h = h1 + (h2 - h1) * (1 - math.cos(t * math.pi)) / 2     -- doux au depart et a l arrivee
+		voiture:PivotTo(departVoiture + Vector3.new(0, h, 0))
+		for bras, cf in pairs(departBras) do
+			bras.CFrame = cf + Vector3.new(0, h, 0)
+		end
+		RunService.Heartbeat:Wait()
+	until t >= 1
+end
+
+local function reparer(poste, joueur)
+	local d = donnees[joueur]
+	if not d then return end
+	if poste:GetAttribute("Occupe") then
+		info:FireClient(joueur, "Ce poste est occupé, prends-en un autre !", JAUNE, 2.5)
+		return
+	end
+	if enReparation[joueur] then
+		info:FireClient(joueur, "Ta voiture est déjà sur un pont !", JAUNE, 2.5)
+		return
+	end
+	if joueur:GetAttribute("EnCourse") then return end
+	local nom = d.voiture
+	local x = degatsDe(d, nom)
+	if x.etat >= 100 and #x.perdues == 0 then
+		info:FireClient(joueur, "Ta " .. nom .. " est en parfait état ✅", VERT, 2.5)
+		return
+	end
+
+	-- LE PRIX. Pas assez de pieces ? Le garagiste prend ce que tu as : on
+	-- ne doit jamais rester bloque avec une voiture cassee.
+	local prix = Catalogue.prixReparation(x.etat, x.perdues)
+	local v = pieces(joueur)
+	if not illimite(joueur) and v then
+		prix = math.min(prix, v.Value)
+		v.Value -= prix
+	end
+
+	poste:SetAttribute("Occupe", joueur.Name)
+	enReparation[joueur] = true
+	print("Garage : " .. joueur.Name .. " repare sa " .. nom .. " (" .. math.floor(x.etat) .. " %, " .. #x.perdues .. " pieces) pour " .. prix .. " pieces")
+	info:FireClient(joueur, "🔧 Réparation de ta " .. nom .. " : " .. (illimite(joueur) and "gratuit" or (prix .. " 🪙")), VERT, 3)
+
+	-- 1. la voiture arrive sur le socle, a SA couleur, SANS ses pieces perdues
+	local socle = poste.Socle
+	local voiture = voitureFigee()
+	voiture.Name = "VoitureEnReparation"
+	Catalogue.peindre(voiture, Catalogue.couleur(nom, d.couleur))
+	local manquantes = Catalogue.partiesDe(voiture, x.perdues)
+	local transparence = {}
+	for _, p in ipairs(manquantes) do
+		transparence[p] = p.Transparency
+		p.Transparency = 1
+	end
+	-- les morceaux uses sont noircis (comme en course) : ils redeviennent
+	-- propres pendant la reparation
+	local noircis = {}
+	for _, u in ipairs(string.split(x.usure, ",")) do
+		local i, pv = string.match(u, "^(%d+):(%d+)$")
+		local p = i and Catalogue.PIECES[tonumber(i)]
+		if p then
+			for _, partie in ipairs(Catalogue.partiesDe(voiture, {p.nom})) do
+				local propre = partie.Color
+				local sale = propre:Lerp(Color3.fromRGB(30, 28, 26), (1 - tonumber(pv) / 100) * 0.6)
+				partie.Color = sale
+				noircis[partie] = {sale, propre}
+			end
+		end
+	end
+	voiture.Parent = poste
+	-- posee sur le socle, le nez vers le mur (meme calcul que la vitrine)
+	local boite, taille = voiture:GetBoundingBox()
+	local decalage = voiture:GetPivot():ToObjectSpace(boite)
+	local dessus = socle.CFrame * CFrame.new(0, socle.Size.Y / 2, 0)
+	local departVoiture = dessus * CFrame.new(0, taille.Y / 2, 0) * decalage:Inverse()
+	voiture:PivotTo(departVoiture)
+	local departBras = {}
+	for _, b in ipairs(poste:GetChildren()) do
+		if b.Name == "Bras" then departBras[b] = b.CFrame end
+	end
+
+	-- 2. le pont monte
+	ecrire(poste, "⬆ " .. joueur.DisplayName, JAUNE)
+	pont(poste, voiture, departVoiture, departBras, 0, HAUSSE)
+
+	-- 3. les machines travaillent : l etat remonte, les pieces reviennent
+	--    une par une (avec un petit eclair)
+	machines(poste, true)
+	local duree = T_BASE + (100 - x.etat) * T_PAR_POINT + #x.perdues * T_PAR_PIECE
+	local piecesARemettre = {}
+	for _, n in ipairs(x.perdues) do table.insert(piecesARemettre, n) end
+	local debut = os.clock()
+	local remises = 0
+	while true do
+		local t = math.min(1, (os.clock() - debut) / duree)
+		local etat = x.etat + (100 - x.etat) * t
+		ecrire(poste, string.format("🔧 RÉPARATION %d %%\n%s", math.floor(etat), joueur.DisplayName), JAUNE)
+		for partie, c in pairs(noircis) do
+			partie.Color = c[1]:Lerp(c[2], t)
+		end
+		-- la piece numero k revient quand on a fait k / (n+1) du travail
+		local doivent = math.floor(t * (#piecesARemettre + 1))
+		while remises < math.min(doivent, #piecesARemettre) do
+			remises += 1
+			local nomPiece = piecesARemettre[remises]
+			for _, p in ipairs(Catalogue.partiesDe(voiture, {nomPiece})) do
+				p.Transparency = transparence[p] or 0
+				local eclair = Instance.new("Highlight")
+				eclair.FillColor = Color3.fromRGB(255, 230, 120)
+				eclair.FillTransparency = 0.2
+				eclair.OutlineTransparency = 1
+				eclair.Adornee = p
+				eclair.Parent = p
+				game:GetService("Debris"):AddItem(eclair, 0.4)
+			end
+			info:FireClient(joueur, "🔩 " .. nomPiece .. " remis(e) en place", VERT, 1.5)
+		end
+		if t >= 1 then break end
+		task.wait(0.1)
+	end
+	machines(poste, false)
+
+	-- 4. c est fini : le pont redescend, la voiture est neuve
+	d.degats[nom] = {etat = 100, perdues = {}, usure = ""}
+	modifie[joueur] = true
+	if joueur.Parent then publier(joueur) end
+	ecrire(poste, "✅ PRÊTE !\n" .. joueur.DisplayName, VERT)
+	pont(poste, voiture, departVoiture, departBras, HAUSSE, 0)
+	info:FireClient(joueur, "✅ Ta " .. nom .. " est comme neuve !", VERT, 3)
+	task.wait(3)
+	voiture:Destroy()
+	ecrire(poste, "LIBRE\nAppuie sur E pour réparer", Color3.new(1, 1, 1))
+	poste:SetAttribute("Occupe", nil)
+	enReparation[joueur] = nil
+end
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt, joueur)
+	if prompt.Name ~= "PromptReparer" then return end
+	local poste = prompt:FindFirstAncestor("PosteReparation")
+	if poste then task.spawn(reparer, poste, joueur) end
+end)
+
+Players.PlayerRemoving:Connect(function(joueur)
+	enReparation[joueur] = nil
+end)
