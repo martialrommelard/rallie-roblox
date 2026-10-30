@@ -37,6 +37,24 @@ if not evt then
 	evt.Parent = ReplicatedStorage
 end
 
+-- ---- SA VOITURE DU GARAGE ----
+-- GarageServeur a pose sur le joueur les reglages de sa voiture
+-- (attributs G_Puissance...). On les recopie sur la voiture ou il va
+-- s asseoir : le module "A-Chassis Tune" les lit quand il demarre, le
+-- script Degats lit Solidite. Et on la repeint de SA couleur.
+local Catalogue = require(ReplicatedStorage:WaitForChild("GarageCatalogue"))
+local REGLAGES = {"Puissance", "VitesseMax", "Freinage", "Solidite"}
+
+local function equiper(voiture, joueur)
+	for _, cle in ipairs(REGLAGES) do
+		voiture:SetAttribute(cle, joueur:GetAttribute("G_" .. cle) or 1)
+	end
+	local couleur = joueur:GetAttribute("G_Couleur")
+	if couleur then Catalogue.peindre(voiture, couleur) end
+	voiture:SetAttribute("Modele", joueur:GetAttribute("G_Voiture") or "Jesko")
+	voiture:SetAttribute("Etat", 100)        -- neuve (script Degats)
+end
+
 local choix = {}         -- choix[joueur] = nom de sa place ("Place3"...)
 local ouverts = {}       -- ouverts[joueur] = true si son ecran de choix est ouvert
 local finAttente = nil   -- l heure (os.clock) du depart automatique
@@ -133,6 +151,7 @@ local function lancer()
 			local humanoide = perso and perso:FindFirstChildOfClass("Humanoid")
 			local siege = v and v:FindFirstChildWhichIsA("VehicleSeat", true)
 			if not (humanoide and siege) then return end
+			equiper(v, joueur)
 			-- on pose le joueur au-dessus de son siege, et on l assoit.
 			-- Plusieurs essais : le tout premier peut rater le temps que le
 			-- personnage arrive (il vient de loin).

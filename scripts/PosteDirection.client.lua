@@ -271,9 +271,15 @@ local function auBureau()
 	return hum and hum.SeatPart and hum.SeatPart.Name == "ChaiseBureau", hum
 end
 
+-- BUG CORRIGE (2026-10-30) : "hum.Jump = true" ne suffisait pas. La
+-- soudure qui tient le perso a la chaise (SeatWeld) appartient au SERVEUR :
+-- c est donc lui qui doit la defaire. On lui demande, et on saute aussi.
 seLever.Activated:Connect(function()
 	local _, hum = auBureau()
-	if hum then hum.Jump = true end      -- sauter = se lever de la chaise
+	if not hum then return end
+	commande:FireServer("lever")
+	hum.Sit = false
+	hum.Jump = true
 end)
 
 local attente = 0

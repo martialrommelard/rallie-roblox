@@ -7,14 +7,40 @@ Projet : **jeu de rally sur Roblox** (voir [`PROJET-RALLY.md`](PROJET-RALLY.md))
 
 ## ⏸️ POUR REPRENDRE LE PROJET — à lire en premier
 
+### État au 2026-10-30
+
+**LA COURSE EST COMPLÈTE ✅ (2026-10-30)** — priorité 1 et 2 de
+[`IDEES.md`](IDEES.md) faites, sauf le vrai test à 2 joueurs :
+- **5 checkpoints** (portiques sur les morceaux de route 30, 60, 90, 125, 165),
+  à passer dans l'ordre : sinon « CHECKPOINT MANQUÉ, tour non compté ».
+  Le prochain portique est **jaune**, ceux passés **verts** (chez chaque pilote).
+- **ABANDONNER** (bouton en bas à droite, 2 clics) ; abandon **automatique** si
+  on reste 8 s hors de sa voiture ; course limitée à **10 min**, et **90 s**
+  pour les autres quand le 1er est arrivé.
+- **Dégâts** : barre « Voiture : xx % » en bas à gauche, fumée, feu, éliminé à 0.
+- Bugs corrigés : « Se lever » des bureaux, erreur A-Chassis (faute de frappe
+  `FAntiRoll`/`RAntiRoll`), son des pneus bloqué, script son qui plantait.
+- Tout est testé en Play (checkpoints, coupe, abandon, choc, garage).
+
+**LE GARAGE est ouvert ✅ (2026-10-30)** — dans la grande salle **sous le
+spawn** (on y descend par les escaliers derrière le spawn). Bornes « Ouvrir le
+garage » devant la vitrine (une voiture qui tourne, à TA couleur).
+- **5 voitures** : Jesko (gratuite), Éclair 40 🪙, Comète 60, Bélier 60,
+  Panthère 120 — même carrosserie, réglages différents ;
+- **améliorations** (3 niveaux, 15 / 30 / 50 🪙) : moteur, boîte, freins, carrosserie ;
+- **10 peintures** gratuites ; tout est **sauvegardé** (DataStore `Garage_v1`) ;
+- à la course, ta voiture sur la grille prend tes réglages et ta peinture.
+Générateur `scripts/Garage.lua` (lancé en Edit) ; en Play : `GarageServeur`,
+`Garage.client`, `GarageCatalogue` (la liste des prix), `Degats`, `Course.client`.
+Déroulé : [`lecons/09-discussion-2026-10-30.md`](lecons/09-discussion-2026-10-30.md).
+
+⚠️ **Ce qui reste** : le **test à 2 joueurs** (Studio → onglet Test → « Clients
+and Servers », 2 joueurs) ; la **piste des stands** (réparer en course) ; régler
+la force des dégâts après une vraie course (`SEUIL` et `FORCE` dans `Degats.lua`).
+⚠️ Le garage et les corrections de la voiture **modifient la place** : Ctrl+S !
+
 ### État au 2026-10-06 (fin d'après-midi)
 
-🔴 **RAPPEL — prochaine séance de développement : commencer par la
-PRIORITÉ 1 de [`IDEES.md`](IDEES.md)**, avant toute nouvelle idée :
-1. **Checkpoints** (obligatoire, pas encore fait) ;
-2. **Test à plusieurs joueurs** (places, podium) ;
-3. **Bouton « Abandonner »** (ou temps limite).
-Puis les bugs (bouton « Se lever » des bureaux, son moteur, erreur A-Chassis).
 Le fantôme et les temps vert / rouge iront dans le **mode entraînement**.
 
 **L'ÉPICERIE est ouverte ✅ (2026-10-06)** — dans la moitié côté porte du
@@ -598,6 +624,32 @@ et l'écran la lisent.
 | « Pièces illimitées tout le temps » compris comme « dans Studio » | je voulais, moi, être le seul à en avoir | redemander **pour qui** |
 | Le bras ne se tendait pas en vol | `Exercices.client` remettait les bras au repos **à chaque image** et écrasait la pose | 2 scripts sur la même articulation s'écrasent : **mesurer** (la main était 1,6 derrière) pour trouver lequel |
 | Une animation « de nage » pour voler | ça se voyait que c'était de la nage | poser le corps nous-mêmes, comme pour les vélos |
+
+### 2026-10-30 — la course complète, les bugs, le garage
+
+Le temps presse : **tout d'un coup**. La priorité 1 (sauf le test à 2), toute
+la priorité 2, et le garage de la priorité 4.
+
+| Ce que j'ai demandé | Ce qui a été fait |
+|---|---|
+| Les checkpoints | 5 portiques, choisis **par la mesure** (un tous les ~550 studs, hors tunnel et tremplin). On ne regarde que le PROCHAIN : on les passe forcément dans l'ordre |
+| L'abandon | bouton (2 clics), abandon automatique après 8 s à pied, 10 min max, 90 s après le 1er |
+| « Se lever » | la soudure du siège appartient au **serveur** : c'est lui qui doit la défaire |
+| L'erreur A-Chassis | une **faute de frappe** du créateur de la voiture : `FAntiRoll` deux fois, `RAntiRoll` jamais → `nil` → plantage ligne 286 |
+| Le son moteur | il se charge bien ; c'était le crissement (son bloqué) et le script son qui plantait en descendant de voiture |
+| Le garage | d'abord mis **sur** le toit (j'avais écrit « en dessous », mal lu) → déplacé **sous le spawn** |
+| Les voitures | 5 modèles, 4 améliorations, 10 peintures, sauvegardés |
+| Les dégâts | on compare la vitesse d'une image à l'autre : un **choc** = un gros changement d'un coup |
+
+**L'astuce du garage** : le module `A-Chassis Tune` de la voiture lit des
+**attributs** (`Puissance`, `VitesseMax`, `Freinage`) et multiplie ses réglages.
+`DepartCourse` pose ces attributs sur ta voiture juste avant de t'asseoir.
+Testé : moteur 3000 → 3180 (×1,06), boîte 2,78 → 2,48 (Comète ×1,12).
+
+| L'erreur | Ce qui se passait | La règle |
+|---|---|---|
+| Le garage sur le toit | « en dessous » lu « au-dessus » | pour un **endroit**, demander ou montrer avant de construire |
+| Un joueur arrivé en pleine course la bloquait | il était compté comme pilote | qui arrive pendant une course est **spectateur** |
 
 ---
 

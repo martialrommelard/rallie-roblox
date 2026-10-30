@@ -204,6 +204,19 @@ end
 
 commande.OnServerEvent:Connect(function(joueur, quoi, valeur)
 	if not auBureau(joueur) then return end            -- pas assis au bureau : on refuse
+	if quoi == "lever" then
+		-- on defait la soudure de la chaise, puis on pose le perso 3 studs
+		-- derriere elle (sinon il retombe assis dessus)
+		local perso = joueur.Character
+		local hum = perso:FindFirstChildOfClass("Humanoid")
+		local chaise = hum.SeatPart
+		local soudure = chaise:FindFirstChild("SeatWeld")
+		if soudure then soudure:Destroy() end
+		hum.Sit = false
+		perso:PivotTo(chaise.CFrame * CFrame.new(0, 3, 3))
+		lacherFocus(joueur)
+		return
+	end
 	if quoi == "meteo" and METEOS[valeur] then
 		METEOS[valeur]()
 		workspace:SetAttribute("Meteo", valeur)

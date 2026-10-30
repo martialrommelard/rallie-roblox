@@ -10,19 +10,26 @@ On coche une case quand l'idée est faite. **On avance dans l'ordre des priorit�
 > ⚠️ **À faire AVANT toute nouvelle idée.** Rappel à chaque séance tant que ce
 > n'est pas fini.
 
-- [ ] **Checkpoints** : empêcher de couper le circuit (obligatoire dans le
-  cahier des charges, pas encore fait).
+- [x] **Checkpoints** : empêcher de couper le circuit. *(2026-10-30 : 5
+  portiques, à passer dans l'ordre ; testé : couper = « checkpoint manqué ».)*
 - [ ] **Tester à plusieurs joueurs** : choix des places, places 2 et 3, podium
   à 3 statues (Studio → Test → plusieurs joueurs, ou avec un copain).
-- [ ] **Bouton « Abandonner »** (ou temps limite) : aujourd'hui, un joueur qui
-  descend de voiture sans mourir bloque la course.
+  *(2026-10-30 : bug corrigé en préparant ce test — un joueur qui arrivait
+  pendant une course la bloquait. Le vrai test à 2 reste à faire.)*
+- [x] **Bouton « Abandonner »** ET temps limite. *(2026-10-30 : bouton,
+  abandon automatique 8 s après être descendu de voiture, 10 min maximum,
+  90 s pour les autres après l'arrivée du 1er.)*
 
 ## 🟠 PRIORITÉ 2 — bugs à corriger
 
-- [ ] **Bureaux : le bouton « Se lever » ne marche pas.**
-- [ ] **Son du moteur** : les sons de la voiture du Toolbox sont bloqués.
-- [ ] **Erreur A-Chassis en boucle** (`Tune.Initialize` ligne 286) qui remplit
-  la console.
+- [x] **Bureaux : le bouton « Se lever » ne marche pas.** *(2026-10-30 : c'est
+  le serveur qui défait la soudure de la chaise.)*
+- [x] **Son du moteur.** *(2026-10-30 : le son moteur se charge bien ; c'était
+  le crissement des pneus qui était bloqué (remplacé), et le script son
+  d'A-Chassis plantait quand on descendait de voiture (corrigé).)*
+- [x] **Erreur A-Chassis en boucle** (`Tune.Initialize` ligne 286).
+  *(2026-10-30 : faute de frappe dans la voiture du Toolbox, `FAntiRoll`
+  écrit deux fois au lieu de `RAntiRoll` : la suspension arrière plantait.)*
 
 ## 🟡 PRIORITÉ 3 — mode entraînement (solo / simulateur)
 
@@ -37,13 +44,18 @@ On coche une case quand l'idée est faite. **On avance dans l'ordre des priorit�
 
 ## 🟢 PRIORITÉ 4 — voitures et garage
 
-- [ ] **La voiture s'abîme pendant la course** en cas de choc.
+- [x] **La voiture s'abîme pendant la course** en cas de choc. *(2026-10-30 :
+  barre d'état, fumée sous 50 %, feu sous 25 %, éliminé à 0 %.)*
 - [ ] **Piste secondaire qui passe par les garages** (comme un arrêt au stand) :
   on y répare la voiture et on prend un boost, mais on perd quelques secondes.
-  *(Va avec les dégâts.)*
-- [ ] **Configurer sa voiture sans être dedans**, une fois le passage au garage fait.
-- [ ] **Améliorer sa voiture avec des pièces** 🪙, et que les améliorations soient sauvegardées.
-- [ ] **Créer d'autres voitures** que celle de Roblox (la Jesko), au choix du joueur.
+  *(Va avec les dégâts — pas encore faite.)*
+- [x] **Configurer sa voiture sans être dedans** : le GARAGE sous le spawn
+  (2026-10-30), bornes « Ouvrir le garage ».
+- [x] **Améliorer sa voiture avec des pièces** 🪙, sauvegardé (DataStore
+  `Garage_v1`) : moteur, boîte, freins, carrosserie, 3 niveaux.
+- [x] **Créer d'autres voitures** : 5 au choix (Jesko, Éclair, Comète, Bélier,
+  Panthère). ⚠️ Même carrosserie (la Jesko) : ce sont la peinture et les
+  réglages qui changent.
 
 ## 🔵 PRIORITÉ 5 — confort et ambiance
 
