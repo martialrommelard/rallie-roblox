@@ -58,7 +58,12 @@ local EQUIPES = {
 -- le NOM de chaque ecurie (par numero). Sans nom : "ECURIE n".
 -- (2026-10-30 : la 3, la verte, porte le nom d un ami, pour essayer)
 local NOMS_ECURIES = {
-	[3] = "TOKITO",
+	[1] = "DRAGON",     -- rouge
+	[2] = "TSUNAMI",    -- bleu
+	[3] = "TOKITO",     -- vert
+	[4] = "PHÉNIX",     -- orange
+	[5] = "VENOM",      -- violet
+	[6] = "TURBO",      -- jaune
 }
 local ASPHALTE = Color3.fromRGB(48, 50, 56)
 local BETON    = Color3.fromRGB(175, 175, 170)
