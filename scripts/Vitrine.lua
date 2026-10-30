@@ -177,7 +177,7 @@ for k, seuil in ipairs(seuils) do
 		bande.BorderSizePixel = 0
 		bande.Parent = g
 		-- (pas d emoji : sur un panneau, Roblox les affiche en carre)
-		texte(g, info.nom,UDim2.new(0.94, 0, 0.34, 0), UDim2.new(0.03, 0, 0.12, 0), Color3.new(1, 1, 1))
+		texte(g, info.nom, UDim2.new(0.94, 0, 0.34, 0), UDim2.new(0.03, 0, 0.12, 0), Color3.new(1, 1, 1))
 		texte(g, (info.prix == 0) and "GRATUITE" or (info.prix .. " PIÈCES"), UDim2.new(1, 0, 0.2, 0), UDim2.new(0, 0, 0.47, 0), Color3.fromRGB(255, 205, 60))
 		texte(g, info.texte, UDim2.new(0.94, 0, 0.26, 0), UDim2.new(0.03, 0, 0.69, 0), Color3.fromRGB(225, 228, 235), Enum.Font.GothamMedium)
 		g.Parent = panneau
