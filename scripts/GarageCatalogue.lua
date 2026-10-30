@@ -20,19 +20,10 @@ Catalogue.VOITURES = {
 	{nom = "Jesko", prix = 0, couleur = Color3.fromRGB(235, 235, 240),
 		texte = "La voiture de départ. Équilibrée.",
 		Puissance = 1, VitesseMax = 1, Freinage = 1, Solidite = 1},
-	{nom = "Éclair", prix = 40, couleur = Color3.fromRGB(255, 200, 40),
-		texte = "Démarre comme une fusée, mais plafonne plus tôt.",
-		Puissance = 1.2, VitesseMax = 0.95, Freinage = 1, Solidite = 0.9},
-	{nom = "Comète", prix = 60, couleur = Color3.fromRGB(60, 140, 255),
-		texte = "La plus rapide en ligne droite. Freine moins bien.",
-		Puissance = 1, VitesseMax = 1.12, Freinage = 0.9, Solidite = 1},
-	{nom = "Bélier", prix = 60, couleur = Color3.fromRGB(95, 125, 75),
-		texte = "Un tank : encaisse deux fois plus de chocs.",
-		Puissance = 0.95, VitesseMax = 1, Freinage = 1.1, Solidite = 2},
-	{nom = "Panthère", prix = 120, couleur = Color3.fromRGB(35, 35, 40),
-		texte = "La meilleure partout. Il faut la mériter !",
-		Puissance = 1.15, VitesseMax = 1.08, Freinage = 1.2, Solidite = 1.2},
-	-- (2026-10-30) une AUTRE CARROSSERIE : la voiture de course rouge aux
+	-- (2026-10-30 : Éclair, Comète, Bélier et Panthère sont REMPLACEES par
+	-- les voitures a theme ci-dessous. Un joueur qui en avait choisi une
+	-- repart avec la Jesko : GarageServeur verifie la voiture au chargement.)
+	-- une AUTRE CARROSSERIE : la voiture de course rouge aux
 	-- grands yeux (generateur VoitureFlash.lua). Tres maniable : elle tourne
 	-- plus vite et colle mieux a la route (Maniabilite, lue par PiloteRally).
 	{nom = "Flash", prix = 500, couleur = Color3.fromRGB(205, 20, 28),
