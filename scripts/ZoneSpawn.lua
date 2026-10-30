@@ -711,10 +711,13 @@ if AILES then
 				local j = j1 + (j2 - j1) * v / (nbJ + 1)
 				local panneau = pave("Lumiere", a - 7, a + 7, j - 2, j + 2, y1 - 0.3, y1,
 					Enum.Material.Neon, BLANC_LUMIERE)
+				-- (2026-10-30 : le hall etait trop lumineux -> dalle un peu
+				-- transparente, elle eblouit moins ; lampe moins forte)
+				panneau.Transparency = 0.35
 				local lampe = Instance.new("SurfaceLight")
 				lampe.Face = Enum.NormalId.Bottom             -- elle eclaire vers le sol
-				lampe.Brightness = 1.2
-				lampe.Range = 22
+				lampe.Brightness = 0.45
+				lampe.Range = 20
 				lampe.Color = BLANC_LUMIERE
 				lampe.Parent = panneau
 			end
