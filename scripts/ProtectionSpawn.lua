@@ -67,7 +67,7 @@ end
 -- ---- 2. LES POINTS DE LA CLOTURE : au bord COTE SPAWN, + RECUL ----
 -- Si la place est deja prise (le mat des feux de depart est plante au
 -- bord de la route, cote spawn), on RECULE d un stud et on reessaie.
-local RECUL_MAX = 20
+local RECUL_MAX = 100     -- (devant les stands, elle passe DERRIERE leur batiment : ~55 studs)
 local sol = RaycastParams.new()
 sol.FilterType = Enum.RaycastFilterType.Exclude
 sol.FilterDescendantsInstances = {route, dossier, workspace:FindFirstChild("Voitures")}

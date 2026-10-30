@@ -102,6 +102,10 @@ local function reverbere(i)
 	local yHaut = p.Position.Y + HAUT_LAMPE
 	-- le sol sous le poteau (il peut etre plus bas que la route : talus)
 	local sol = workspace:Raycast(Vector3.new(pied.X, yHaut, pied.Z), Vector3.new(0, -80, 0), rayon)
+	-- devant les STANDS, le poteau tomberait sur le muret ou dans la voie :
+	-- pas de reverbere la (le batiment des stands a ses propres lumieres)
+	if sol and (sol.Instance:IsDescendantOf(circuit:FindFirstChild("Stands") or dossier)
+		or sol.Instance:IsDescendantOf(circuit:FindFirstChild("Ecuries") or dossier)) then return end
 	local yBas = sol and sol.Position.Y or p.Position.Y
 	-- mais pas plus de 3 studs sous la route : au-dessus d un ravin, ca
 	-- faisait des poteaux de 76 studs ! On l accroche au bord de la route.
