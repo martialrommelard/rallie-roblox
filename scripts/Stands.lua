@@ -55,6 +55,11 @@ local EQUIPES = {
 	Color3.fromRGB(215, 40, 45), Color3.fromRGB(40, 110, 230), Color3.fromRGB(40, 175, 80),
 	Color3.fromRGB(255, 140, 30), Color3.fromRGB(140, 60, 210), Color3.fromRGB(240, 200, 30),
 }
+-- le NOM de chaque ecurie (par numero). Sans nom : "ECURIE n".
+-- (2026-10-30 : la 3, la verte, porte le nom d un ami, pour essayer)
+local NOMS_ECURIES = {
+	[3] = "TOKITO",
+}
 local ASPHALTE = Color3.fromRGB(48, 50, 56)
 local BETON    = Color3.fromRGB(175, 175, 170)
 local BLANC    = Color3.fromRGB(242, 242, 245)
@@ -154,14 +159,14 @@ local function ecrire(p, face, texte, couleur)
 	t.Parent = g
 	return g
 end
--- le BANDEAU d une ecurie : "ECURIE n" au milieu, et le numero dans une
--- pastille blanche a chaque bout
+-- le BANDEAU d une ecurie : son nom (ou "ECURIE n") au milieu, et le
+-- numero dans une pastille blanche a chaque bout
 local function bandeauEcurie(p, face, n, couleur)
 	local g = surface(p, face)
 	local t = Instance.new("TextLabel")
 	t.Size = UDim2.fromScale(0.64, 1)
 	t.Position = UDim2.fromScale(0.18, 0)
-	t.Text = "ÉCURIE " .. n
+	t.Text = NOMS_ECURIES[n] or ("ÉCURIE " .. n)
 	lettres(t, Color3.new(1, 1, 1))
 	t.Parent = g
 	for _, x in ipairs({0.02, 0.98}) do
@@ -258,6 +263,7 @@ for n = 1, NB do
 	local box = Instance.new("Model")
 	box.Name = "Ecurie" .. n
 	box:SetAttribute("Numero", n)
+	box:SetAttribute("Nom", NOMS_ECURIES[n])
 	-- la bande de couleur au sol du garage, et le fond
 	local bandeSol = pave("SolEquipe", d1 + 1, d2 - 1, xFacade + 2, xFondBox - 1, -0.02, 0.01, couleur, nil, box)
 	bandeSol.CanCollide = false
@@ -309,6 +315,7 @@ for n = 1, NB do
 	zone.Transparency = 1
 	zone.CanCollide, zone.CanQuery, zone.CanTouch = false, false, false
 	zone:SetAttribute("Numero", n)
+	zone:SetAttribute("Nom", NOMS_ECURIES[n])
 end
 
 -- les PILIERS entre les garages (et aux deux bouts), et les cloisons

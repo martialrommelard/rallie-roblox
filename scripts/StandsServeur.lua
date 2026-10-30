@@ -73,7 +73,10 @@ while true do
 			local auxStands = dansLesStands(chassis)
 			voiture:SetAttribute("Limiteur", auxStands and LIMITEUR or nil)
 			if auxStands and not e.stands and joueur then
-				info:FireClient(joueur, "🔧 STANDS — limiteur " .. LIMITEUR .. " — arrête-toi à l'écurie n°" .. tostring(numero), JAUNE, 4)
+				-- l ecurie peut avoir un NOM (attribut pose par Stands.lua)
+				local nom = zones[numero] and zones[numero]:GetAttribute("Nom")
+				local ecurie = nom and (nom .. " (n°" .. tostring(numero) .. ")") or ("n°" .. tostring(numero))
+				info:FireClient(joueur, "🔧 STANDS — limiteur " .. LIMITEUR .. " — arrête-toi à l'écurie " .. ecurie, JAUNE, 4)
 			end
 			e.stands = auxStands
 
