@@ -35,10 +35,10 @@ local AVANCE_ROUE = 25     -- antipatinage : la roue va au plus 25 studs/s plus 
 local BRAQUAGE    = 35     -- l angle des roues avant a l arret (degres)...
 local BRAQUAGE_VITE = 18   -- ...et a pleine vitesse
 local ADHERENCE   = 10     -- combien on enleve de glissade par seconde (plus = plus colle)
-local VIRAGE      = 2.6    -- vitesse de rotation voulue a fond de volant (radians/s), a vitesse moyenne...
-local VIRAGE_VITE = 1.8    -- ...et a pleine vitesse. (Avant : 1.3. Calcul : l epingle fait 43 studs
+local VIRAGE      = 2.9    -- vitesse de rotation voulue a fond de volant (radians/s), a vitesse moyenne...
+local VIRAGE_VITE = 2.1    -- ...et a pleine vitesse. (Au debut : 1.3. Calcul : l epingle fait 43 studs
                            -- de rayon ; a 80 studs/s il faut 80 / 43 = 1.86 rad/s, on n avait que 1.66)
-local AIDE_VIRAGE = 6      -- a quelle vitesse la voiture rejoint cette rotation
+local AIDE_VIRAGE = 8      -- a quelle vitesse la voiture rejoint cette rotation (plus = plus vif)
 local SOL         = 3.5    -- au sol si le dessous du chassis est a moins de 3.5 studs de quelque chose
 local SENS        = -1     -- le sens de rotation des roues (mesure : -1 = elles poussent vers l avant)
 local SENS_VOLANT = -1     -- le sens de la direction (mesure : -1 = SteerFloat 1 tourne a droite)
@@ -80,7 +80,10 @@ local function infosDe(voiture)
 				roue = r,
 				moteur = r:FindFirstChild("Moteur"),
 				direction = att or nil,            -- nil a l arriere
-				droit = att and att.CFrame,        -- l attache, roues droites
+				-- l attache, roues DROITES : sans aucune rotation (c est
+				-- comme ca que le generateur la cree). On ne la LIT pas : lue
+				-- pendant qu on braque, la voiture tirait a droite pour toujours.
+				droit = att and CFrame.new(att.Position),
 				rayon = r.Size.Y / 2,
 			})
 		end
