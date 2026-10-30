@@ -24,7 +24,7 @@ local Produits = require(ReplicatedStorage:WaitForChild("Produits"))
 local modeles  = ServerStorage:WaitForChild("Epicerie"):WaitForChild("Modeles")
 local magasin  = workspace:WaitForChild("ZoneSpawn"):WaitForChild("Epicerie")
 
-local GAINS_PLACE  = {10, 5, 3}      -- pieces pour le 1er, le 2eme, le 3eme
+local GAINS_PLACE  = {7, 5, 3}       -- pieces pour le 1er, le 2eme, le 3eme (avant : 10, 5, 3)
 local GAIN_ARRIVEE = 1               -- pour les suivants, s ils finissent (elimine : rien)
 local SAUVE_TOUTES = 60              -- secondes entre deux sauvegardes automatiques
 local MAX_SAC      = 5               -- produits dans l inventaire, au plus
