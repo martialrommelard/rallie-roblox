@@ -136,6 +136,7 @@ end
 local PISTE = {
 	Route = true, Damier = true, Grille = true, LigneDepart = true,
 	Tremplin = true, MarqueTremplin = true, PilierTremplin = true,
+	Stands = true,     -- la voie des stands et le sol des ecuries (generateur Stands.lua)
 }
 
 local function estPiste(objet)

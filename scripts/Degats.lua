@@ -67,7 +67,7 @@ end
 local PISTE = {
 	Route = true, Damier = true, Grille = true, LigneDepart = true,
 	Tremplin = true, MarqueTremplin = true, PilierTremplin = true,
-	CagesDepart = true, Checkpoints = true,
+	CagesDepart = true, Checkpoints = true, Stands = true,
 }
 local function estPiste(objet)
 	if objet:IsA("Terrain") or objet.Name == "Baseplate" then return true end
@@ -297,3 +297,149 @@ end)
 dossier.ChildRemoved:Connect(function(voiture)
 	morceaux[voiture], depart[voiture] = nil, nil
 end)
+
+-- =========================================================
+-- LA REPARATION AUX STANDS (StandsServeur l appelle chaque seconde
+-- quand la voiture est arretee devant SON ecurie)
+-- Elle repare UN PEU : elle remet un morceau tombe a la fois (les roues
+-- d abord), puis rend des PV aux morceaux abimes, mais seulement
+-- jusqu a PV_STAND. Le garage, lui, remet a neuf.
+-- =========================================================
+local PV_STAND   = 80    -- aux stands, on ne depasse pas 80 PV
+local SOIN_STAND = 20    -- PV rendus a chaque etape
+
+local reparationStand = ServerStorage:FindFirstChild("ReparationStand")
+if not reparationStand then
+	reparationStand = Instance.new("BindableFunction")
+	reparationStand.Name = "ReparationStand"
+	reparationStand.Parent = ServerStorage
+end
+
+-- REMETTRE un morceau tombe : on prend le meme morceau dans la voiture
+-- de reference (ServerStorage.VoitureModele), on le copie, et on le pose
+-- au MEME endroit par rapport au chassis. Puis on le soude (une roue :
+-- on lui refait sa charniere moteur sur sa fusee).
+local function remettre(voiture, nom)
+	local modele = ServerStorage:FindFirstChild("VoitureModele")
+	local chM, chV = modele and modele:FindFirstChild("Chassis"), voiture:FindFirstChild("Chassis")
+	if not (chM and chV) then return false end
+	local couleur = voiture:FindFirstChild("Caisse") and voiture.Caisse.Color
+	local numero = nil
+	for _, t in ipairs(voiture:GetDescendants()) do
+		if t:IsA("TextLabel") and t.Name == "Numero" and not t.Text:find("RALLYE") then numero = t.Text end
+	end
+	local copies, roue = {}, nil
+	for _, p in ipairs(modele:GetDescendants()) do
+		if p:IsA("BasePart") and p:GetAttribute("Morceau") == nom then
+			local c = p:Clone()
+			-- ses soudures et charnieres pointaient vers la voiture de reference
+			for _, x in ipairs(c:GetChildren()) do
+				if x:IsA("WeldConstraint") or x:IsA("NoCollisionConstraint") or x:IsA("HingeConstraint") then x:Destroy() end
+			end
+			c.CFrame = chV.CFrame * chM.CFrame:ToObjectSpace(p.CFrame)
+			if couleur and c:GetAttribute("Peinture") then c.Color = couleur end
+			for _, t in ipairs(c:GetDescendants()) do
+				if t:IsA("TextLabel") and t.Name == "Numero" and numero then t.Text = numero end
+			end
+			c.Parent = voiture
+			if p:FindFirstChild("Moteur") then roue = c end
+			table.insert(copies, c)
+		end
+	end
+	if #copies == 0 then return false end
+	local roues = {}
+	for _, r in ipairs(voiture:GetChildren()) do
+		if r:IsA("BasePart") and r:FindFirstChild("Moteur") then table.insert(roues, r) end
+	end
+	for _, c in ipairs(copies) do
+		if c == roue then
+			-- la ROUE : une charniere moteur entre sa fusee et elle
+			local fusee = voiture:FindFirstChild("Fusee" .. c.Name:sub(5))     -- "RoueAvG" -> "FuseeAvG"
+			local moteur = Instance.new("HingeConstraint")
+			moteur.Name = "Moteur"
+			moteur.ActuatorType = Enum.ActuatorType.Motor
+			moteur.Attachment0 = fusee and fusee:FindFirstChild("AttMoteur")
+			moteur.Attachment1 = c:FindFirstChild("AttMoteur")
+			moteur.MotorMaxTorque = 0
+			moteur.Parent = c
+			-- elle ne cogne pas sa propre voiture
+			for _, p in ipairs(voiture:GetDescendants()) do
+				if p:IsA("BasePart") and p ~= c and p.CanCollide then
+					local nc = Instance.new("NoCollisionConstraint")
+					nc.Part0, nc.Part1 = c, p
+					nc.Parent = c
+				end
+			end
+		else
+			-- un morceau de carrosserie (ou la jante) : soude au chassis, ou a sa roue
+			local w = Instance.new("WeldConstraint")
+			w.Part0, w.Part1 = (roue and c.Name:match("^Jante")) and roue or chV, c
+			w.Parent = c
+			-- les roues ne doivent pas le cogner
+			for _, r in ipairs(roues) do
+				if c.CanCollide then
+					local nc = Instance.new("NoCollisionConstraint")
+					nc.Part0, nc.Part1 = r, c
+					nc.Parent = c
+				end
+			end
+		end
+	end
+	-- il fait de nouveau partie de la voiture : avec PV_STAND points de vie
+	local m = {nom = nom, pv = PV_STAND, parties = copies, couleurs = {}}
+	for _, c in ipairs(copies) do
+		m.couleurs[c] = c.Color
+		if c:FindFirstChild("Moteur") then m.roue, m.moteur = c, c.Moteur end
+		if c.CanTouch then
+			c.Touched:Connect(function(autre) surContact(voiture, c, autre) end)
+		end
+	end
+	morceauxDe(voiture)[nom] = m
+	-- on le raye de la liste des morceaux perdus
+	local reste = {}
+	for _, n in ipairs(string.split(voiture:GetAttribute("Perdues") or "", ",")) do
+		if n ~= "" and n ~= nom then table.insert(reste, n) end
+	end
+	voiture:SetAttribute("Perdues", table.concat(reste, ","))
+	-- PiloteRally doit retrouver ses roues : on change la "version" de la voiture
+	voiture:SetAttribute("Version", (voiture:GetAttribute("Version") or 0) + 1)
+	return true
+end
+
+-- Une ETAPE de reparation. Rend "remis" (et le nom), "soigne", ou "fini".
+reparationStand.OnInvoke = function(voiture)
+	local resultat, nomRemis = "fini", nil
+	-- 1. un morceau tombe ? on le remet (les roues d abord)
+	local perdues = string.split(voiture:GetAttribute("Perdues") or "", ",")
+	table.sort(perdues, function(a, b)
+		return (a:find("^Roue") and 0 or 1) < (b:find("^Roue") and 0 or 1)
+	end)
+	for _, nom in ipairs(perdues) do
+		if nom ~= "" and remettre(voiture, nom) then
+			resultat, nomRemis = "remis", nom
+			break
+		end
+	end
+	-- 2. sinon : des PV aux morceaux abimes (jusqu a PV_STAND)
+	if resultat == "fini" then
+		for _, m in pairs(morceauxDe(voiture)) do
+			if m.pv < PV_STAND then
+				m.pv = math.min(PV_STAND, m.pv + SOIN_STAND)
+				local t = (1 - m.pv / 100) * NOIRCI
+				for _, partie in ipairs(m.parties) do
+					if m.couleurs[partie] then partie.Color = m.couleurs[partie]:Lerp(SUIE, t) end
+				end
+				resultat = "soigne"
+			end
+		end
+	end
+	if resultat ~= "fini" then
+		voiture:SetAttribute("Etat", calculerEtat(voiture))
+		local joueur = piloteDe(voiture)
+		if joueur then
+			signal:Fire(joueur, voiture:GetAttribute("Modele"), voiture:GetAttribute("Etat"),
+				voiture:GetAttribute("Perdues") or "", usureTexte(voiture))
+		end
+	end
+	return resultat, nomRemis
+end

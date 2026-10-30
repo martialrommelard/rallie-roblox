@@ -50,10 +50,14 @@ local function infosDe(voiture)
 	-- On garde ce qu on a trouve... sauf si la voiture etait INCOMPLETE
 	-- (avec le streaming, une roue peut arriver chez le joueur en retard :
 	-- elle n aurait jamais braque). Pendant 5 s, on recommence alors.
+	-- (et si on lui a REMIS une roue aux stands, sa "Version" change : on
+	-- recommence aussi, pour trouver la nouvelle roue)
+	local version = voiture:GetAttribute("Version") or 0
 	local deja = infos[voiture]
-	if deja and (deja.complete or os.clock() - deja.cree > 5) then return deja end
+	if deja and deja.version == version and (deja.complete or os.clock() - deja.cree > 5) then return deja end
 	local x = {
-		cree = deja and deja.cree or os.clock(),
+		version = version,
+		cree = (deja and deja.version == version) and deja.cree or os.clock(),
 		siege = voiture:FindFirstChild("DriveSeat"),
 		chassis = voiture:FindFirstChild("Chassis"),
 		roues = {},
@@ -105,7 +109,9 @@ function Pilote.piloter(voiture, gaz, volant, dt, aides)
 	local x = infosDe(voiture)
 	if not (x.siege and x.chassis) then return end
 	local v = Pilote.vitesse(voiture)
-	local vmax = VITESSE_MAX * (voiture:GetAttribute("VitesseMax") or 1)
+	-- (dans la voie des stands, le LIMITEUR : StandsServeur pose l attribut)
+	local vmaxVoiture = VITESSE_MAX * (voiture:GetAttribute("VitesseMax") or 1)
+	local vmax = math.min(vmaxVoiture, voiture:GetAttribute("Limiteur") or math.huge)
 	local couple = COUPLE * (voiture:GetAttribute("Puissance") or 1)
 	local frein = FREIN * (voiture:GetAttribute("Freinage") or 1)
 
@@ -123,7 +129,7 @@ function Pilote.piloter(voiture, gaz, volant, dt, aides)
 	else
 		cible, force = 0, ROUE_LIBRE                      -- roue libre
 	end
-	local f = math.clamp(math.abs(v) / vmax, 0, 1)
+	local f = math.clamp(math.abs(v) / vmaxVoiture, 0, 1)   -- (pas le limiteur : le volant reste vif aux stands)
 	local angle = volant * (BRAQUAGE + (BRAQUAGE_VITE - BRAQUAGE) * f)
 	for _, r in ipairs(x.roues) do
 		if r.moteur and r.moteur.Parent then              -- (une roue arrachee n a plus de moteur)
