@@ -36,6 +36,35 @@ local function alleger(perso, oui)
 	if not oui then allege = {} end
 end
 
+-- ---- LE POUVOIR "FEU" (le Dragon) : touche F, ou le bouton ----
+-- C est le serveur (PouvoirsVoitures) qui decide si on peut cracher :
+-- ici on ne fait qu envoyer la demande, et afficher l attente.
+local UserInputService = game:GetService("UserInputService")
+local pouvoir = ReplicatedStorage:WaitForChild("PouvoirVoiture", 30)
+local ecran = Instance.new("ScreenGui")
+ecran.Name = "PouvoirVoiture"
+ecran.ResetOnSpawn = false
+ecran.Enabled = false
+ecran.Parent = joueur:WaitForChild("PlayerGui")
+local bouton = Instance.new("TextButton")
+bouton.AnchorPoint = Vector2.new(0.5, 1)
+bouton.Position = UDim2.new(0.5, 0, 1, -110)
+bouton.Size = UDim2.fromOffset(170, 46)
+bouton.BackgroundColor3 = Color3.fromRGB(170, 40, 20)
+bouton.TextColor3 = Color3.new(1, 1, 1)
+bouton.Font = Enum.Font.GothamBlack
+bouton.TextSize = 20
+bouton.Text = "🔥 FEU  (F)"
+bouton.Parent = ecran
+Instance.new("UICorner", bouton).CornerRadius = UDim.new(0, 10)
+local function cracher()
+	if pouvoir and ecran.Enabled then pouvoir:FireServer("feu") end
+end
+bouton.Activated:Connect(cracher)
+UserInputService.InputBegan:Connect(function(entree, pris)
+	if not pris and entree.KeyCode == Enum.KeyCode.F then cracher() end
+end)
+
 local auVolant = false
 RunService.Heartbeat:Connect(function(dt)
 	local perso = joueur.Character
@@ -50,5 +79,13 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	if maintenant then
 		Pilote.piloter(siege.Parent, siege.ThrottleFloat, siege.SteerFloat, dt, true)
+	end
+	-- le bouton du feu : seulement au volant d un Dragon, pendant la course
+	local dragon = maintenant and siege.Parent:GetAttribute("Pouvoir") == "Feu" and workspace:GetAttribute("CourseEnCours") == true
+	ecran.Enabled = dragon
+	if dragon then
+		local reste = (siege.Parent:GetAttribute("Recharge") or 0) - workspace:GetServerTimeNow()
+		bouton.Text = (reste > 0) and string.format("🔥 %d s", math.ceil(reste)) or "🔥 FEU  (F)"
+		bouton.BackgroundColor3 = (reste > 0) and Color3.fromRGB(80, 60, 55) or Color3.fromRGB(170, 40, 20)
 	end
 end)

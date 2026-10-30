@@ -306,6 +306,26 @@ workspace:GetAttributeChangedSignal("CourseEnCours"):Connect(function()
 	end
 end)
 
+-- ABIMER DE LOIN (le feu du Dragon : script PouvoirsVoitures) : le
+-- morceau le plus proche du point d ou vient le coup
+local abimerDeLoin = ServerStorage:FindFirstChild("AbimerVoiture")
+if not abimerDeLoin then
+	abimerDeLoin = Instance.new("BindableEvent")
+	abimerDeLoin.Name = "AbimerVoiture"
+	abimerDeLoin.Parent = ServerStorage
+end
+abimerDeLoin.Event:Connect(function(voiture, point, pv, raison)
+	if not (workspace:GetAttribute("CourseEnCours") and depart[voiture] and voiture.Parent == dossier) then return end
+	local meilleur, dMin = nil, math.huge
+	for _, m in pairs(morceauxDe(voiture)) do
+		for _, p in ipairs(m.parties) do
+			local d = (pointProche(p, point) - point).Magnitude
+			if d < dMin then meilleur, dMin = m, d end
+		end
+	end
+	if meilleur then abimer(voiture, meilleur, pv, raison) end
+end)
+
 -- une voiture remplacee : on oublie ce qu on savait d elle
 dossier.ChildRemoved:Connect(function(voiture)
 	morceaux[voiture], depart[voiture] = nil, nil

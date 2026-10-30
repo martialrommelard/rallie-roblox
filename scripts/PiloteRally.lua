@@ -116,6 +116,9 @@ function Pilote.piloter(voiture, gaz, volant, dt, aides)
 	local frein = FREIN * (voiture:GetAttribute("Freinage") or 1)
 	-- la MANIABILITE (la Flash : 1.3) : elle tourne plus vite et glisse moins
 	local mania = voiture:GetAttribute("Maniabilite") or 1
+	-- sur le VERGLAS de la Givre (attribut pose par PouvoirsVoitures) :
+	-- presque plus d adherence, le volant repond mal
+	if voiture:GetAttribute("Glisse") then mania *= 0.25 end
 
 	-- ---- LES ROUES ----
 	local cible, force

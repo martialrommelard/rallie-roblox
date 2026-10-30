@@ -144,11 +144,13 @@ for k, seuil in ipairs(seuils) do
 		local rang = i - premiere                                   -- 0, 1, 2...
 		local x = (rang - (nbIci - 1) / 2) * (largeur / nbIci)      -- reparties sur la largeur
 		local centre = ici(x, 0, PROF_PODIUM)
+		-- (plus il y a de voitures, plus les podiums sont petits : ils ne se touchent pas)
+		local r = math.min(R_PODIUM, largeur / nbIci / 2 - 1)
 		-- le podium (un disque) et son anneau de neon
-		local disque = piece("Podium", Vector3.new(1, R_PODIUM * 2, R_PODIUM * 2), centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), SOMBRE, Enum.Material.Metal)
+		local disque = piece("Podium", Vector3.new(1, r * 2, r * 2), centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), SOMBRE, Enum.Material.Metal)
 		disque.Shape = Enum.PartType.Cylinder
 		disque.Reflectance = 0.1
-		local anneau = piece("AnneauPodium", Vector3.new(0.6, R_PODIUM * 2 + 1, R_PODIUM * 2 + 1), centre * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), info.couleur, Enum.Material.Neon)
+		local anneau = piece("AnneauPodium", Vector3.new(0.6, r * 2 + 1, r * 2 + 1), centre * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), info.couleur, Enum.Material.Neon)
 		anneau.Shape = Enum.PartType.Cylinder
 		-- la voiture, posee sur le disque, de biais, le nez vers la vitre
 		local v = voitureExpo(info)
@@ -165,8 +167,8 @@ for k, seuil in ipairs(seuils) do
 		l.Parent = spot
 		-- le panneau devant (cote vitre) : nom, prix, description. Un
 		-- PUPITRE bas et penche : il ne cache pas la voiture derriere lui.
-		local pied = piece("PiedPanneau", Vector3.new(0.6, 1.6, 0.6), centre * CFrame.new(0, 0.8, -R_PODIUM - 3), SOMBRE, Enum.Material.Metal)
-		local panneau = piece("Panneau", Vector3.new(9, 4.5, 0.3), centre * CFrame.new(0, 2.6, -R_PODIUM - 3) * CFrame.Angles(math.rad(55), 0, 0), SOMBRE)
+		local pied = piece("PiedPanneau", Vector3.new(0.6, 1.6, 0.6), centre * CFrame.new(0, 0.8, -r - 3), SOMBRE, Enum.Material.Metal)
+		local panneau = piece("Panneau", Vector3.new(9, 4.5, 0.3), centre * CFrame.new(0, 2.6, -r - 3) * CFrame.Angles(math.rad(55), 0, 0), SOMBRE)
 		local g = Instance.new("SurfaceGui")
 		g.Face = Enum.NormalId.Front            -- vers la vitre (et ceux qui regardent)
 		g.PixelsPerStud = 30
