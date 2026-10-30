@@ -43,10 +43,26 @@ Déroulé : [`lecons/09-discussion-2026-10-30.md`](lecons/09-discussion-2026-10-
 
 **LE SHOWROOM ✅ (2026-10-30)** — les deux grands portails de garage du
 sous-sol (avec leur rampe, côté piste) ne menaient plus nulle part. Ils sont
-fermés par une **baie vitrée**, et derrière, les **5 voitures du garage** sont
+fermés par une **baie vitrée**, et derrière, les **voitures du garage** sont
 exposées sur des podiums éclairés (anneau de leur couleur, pupitre avec nom,
 prix et description, enseigne « SHOWROOM »). Générateur `scripts/Vitrine.lua`
 (lancé en Edit, rangé dans ServerStorage.Outils).
+
+**LES VOITURES À THÈME ✅ (2026-10-30, fin de journée)** — Éclair, Comète,
+Bélier et Panthère sont **remplacées**. Le garage a 6 voitures (une par écurie),
+chacune avec sa carrosserie (copie de la voiture de rally, rhabillée) :
+Jesko (gratuite), **Requin** 50 (dents à l'avant : qui se fait mordre s'abîme
+×2.5), **Givre** 100 (laisse des carrés de verglas : on glisse), **Dragon** 250
+(touche F : crache du feu à 55 studs), **Ronce** 300 (épines et branches :
+défense), **Flash** 500 (maniabilité ×1.3). Générateurs `VoitureFlash.lua`,
+`VoitureRonce.lua`, `CarrosseriesTheme.lua` ; pouvoirs : `PouvoirsVoitures`.
+Gains de course : **7 / 5 / 3**, puis 1.
+Aussi : textes lisibles partout (`SizingMode` !), écuries nommées (DRAGON,
+TSUNAMI, TOKITO, PHÉNIX, VENOM, TURBO), 171 **spectateurs** qui applaudissent
+(`Spectateurs.lua` + `.client`), **mur d'enceinte** de 110 studs (`Enceinte.lua`),
+marche manquante des gradins rebouchée, hall du spawn moins éblouissant.
+⚠️ **Pas encore testé en Play** : les pouvoirs (feu, verglas), les dents et
+épines, le changement de carrosserie au départ, les spectateurs qui bougent.
 
 ⚠️ **Ce qui reste** : le **test à 2 joueurs** (Studio → onglet Test → « Clients
 and Servers », 2 joueurs) ; régler
