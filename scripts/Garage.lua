@@ -126,6 +126,7 @@ local function ecrire(p, face, texte, couleur, nom)
 	local g = Instance.new("SurfaceGui")
 	g.Face = face
 	g.LightInfluence = 0
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud   -- sinon Roblox ignore PixelsPerStud (cadre fixe 800x600 etire : lettres ecrasees)
 	local _, haut = tailleFace(p, face)
 	local lignes = select(2, texte:gsub("\n", "")) + 1
 	g.PixelsPerStud = math.clamp(125 * lignes / haut, 10, 200)

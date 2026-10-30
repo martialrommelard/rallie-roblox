@@ -139,6 +139,7 @@ local function surface(p, face)
 	local g = Instance.new("SurfaceGui")
 	g.Face = face
 	g.LightInfluence = 0
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud   -- sinon Roblox ignore PixelsPerStud (cadre fixe 800x600 etire : lettres ecrasees)
 	local _, haut = tailleFace(p, face)
 	g.PixelsPerStud = math.clamp(125 / haut, 10, 200)
 	g.Parent = p
@@ -167,7 +168,7 @@ local function bandeauEcurie(p, face, n, couleur)
 		local pastille = Instance.new("TextLabel")
 		pastille.AnchorPoint = Vector2.new(x, 0.5)
 		pastille.Position = UDim2.fromScale(x, 0.5)
-		pastille.Size = UDim2.fromScale(1, 0.8)
+		pastille.Size = UDim2.fromScale(0.8, 0.8)
 		pastille.SizeConstraint = Enum.SizeConstraint.RelativeYY     -- un carre
 		pastille.BackgroundColor3 = Color3.new(1, 1, 1)
 		pastille.Font = Enum.Font.GothamBlack
@@ -323,6 +324,7 @@ local deco = Instance.new("SurfaceGui")
 deco.Face = Enum.NormalId.Right            -- cote spawn
 deco.PixelsPerStud = 10
 deco.LightInfluence = 0
+deco.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 for i, c in ipairs(EQUIPES) do
 	local bandeD = Instance.new("Frame")
 	bandeD.Size = UDim2.new(1 / (#EQUIPES * 2), 0, 1, 0)

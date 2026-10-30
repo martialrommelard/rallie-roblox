@@ -171,6 +171,7 @@ for k, seuil in ipairs(seuils) do
 		g.Face = Enum.NormalId.Front            -- vers la vitre (et ceux qui regardent)
 		g.PixelsPerStud = 30
 		g.LightInfluence = 0                    -- lisible meme dans l ombre
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud   -- sinon Roblox ignore PixelsPerStud (cadre fixe 800x600 etire : lettres ecrasees)
 		local bande = Instance.new("Frame")
 		bande.Size = UDim2.new(1, 0, 0.08, 0)
 		bande.BackgroundColor3 = info.couleur
@@ -189,6 +190,7 @@ for k, seuil in ipairs(seuils) do
 	local g = Instance.new("SurfaceGui")
 	g.Face = Enum.NormalId.Front
 	g.PixelsPerStud = 15
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	g.LightInfluence = 0
 	texte(g, "SHOWROOM", UDim2.new(1, 0, 0.62, 0), UDim2.new(0, 0, 0.04, 0), NEON)
 	texte(g, "Ces voitures s'achètent au GARAGE, sous le spawn", UDim2.new(1, 0, 0.26, 0), UDim2.new(0, 0, 0.7, 0), Color3.new(1, 1, 1), Enum.Font.GothamBold)

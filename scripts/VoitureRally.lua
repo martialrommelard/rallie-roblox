@@ -126,6 +126,7 @@ local function deco(p, face, construire)
 	g.Name = "Deco"
 	g.Face = face
 	g.PixelsPerStud = 40
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud   -- sinon Roblox ignore PixelsPerStud (cadre fixe 800x600 etire : lettres ecrasees)
 	construire(g)
 	g.Parent = p
 	return g

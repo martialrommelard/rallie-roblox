@@ -91,6 +91,7 @@ for i, morceau in ipairs(portes) do
 		local g = Instance.new("SurfaceGui")
 		g.Face = face
 		g.PixelsPerStud = 25
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud   -- sinon Roblox ignore PixelsPerStud (cadre fixe 800x600 etire : lettres ecrasees)
 		local t = Instance.new("TextLabel")
 		t.Size = UDim2.fromScale(1, 1)
 		t.BackgroundTransparency = 1
