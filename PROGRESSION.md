@@ -41,8 +41,15 @@ Générateur `scripts/Garage.lua` (lancé en Edit) ; en Play : `GarageServeur`,
 `Garage.client`, `GarageCatalogue` (la liste des prix), `Degats`, `Course.client`.
 Déroulé : [`lecons/09-discussion-2026-10-30.md`](lecons/09-discussion-2026-10-30.md).
 
+**LE SHOWROOM ✅ (2026-10-30)** — les deux grands portails de garage du
+sous-sol (avec leur rampe, côté piste) ne menaient plus nulle part. Ils sont
+fermés par une **baie vitrée**, et derrière, les **5 voitures du garage** sont
+exposées sur des podiums éclairés (anneau de leur couleur, pupitre avec nom,
+prix et description, enseigne « SHOWROOM »). Générateur `scripts/Vitrine.lua`
+(lancé en Edit, rangé dans ServerStorage.Outils).
+
 ⚠️ **Ce qui reste** : le **test à 2 joueurs** (Studio → onglet Test → « Clients
-and Servers », 2 joueurs) ; la **piste des stands** (réparer en course) ; régler
+and Servers », 2 joueurs) ; régler
 la force des dégâts après une vraie course (`SEUIL` et `FORCE` dans `Degats.lua`).
 ⚠️ Le garage et les corrections de la voiture **modifient la place** : Ctrl+S !
 
